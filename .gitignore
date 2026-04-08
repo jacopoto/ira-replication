@@ -1,0 +1,60 @@
+# ---- OS ----
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ---- Editors / IDEs ----
+.vscode/
+.idea/
+*.swp
+*~
+.Rproj.user/
+.Rhistory
+.RData
+.Ruserdata
+
+# ---- R ----
+*.Rproj
+renv/library/
+renv/python/
+renv/staging/
+.Rcheck/
+
+# ---- Python ----
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+env/
+.ipynb_checkpoints/
+*.egg-info/
+
+# ---- Stata ----
+*.smcl
+*.log
+*.gph
+~*.dta
+
+# ---- LaTeX ----
+*.aux
+*.bbl
+*.blg
+*.fdb_latexmk
+*.fls
+*.log
+*.out
+*.synctex.gz
+*.toc
+
+# ---- Large / sensitive data ----
+# Uncomment and adapt as needed:
+# data/raw/
+# data/restricted/
+# *.dta
+# *.csv
+# *.parquet
+
+# ---- Build artifacts ----
+output/tmp/
+logs/
+*.tmp
