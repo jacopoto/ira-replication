@@ -1,0 +1,520 @@
+---
+title: "06_build_backenvelope_data"
+output: html_document
+date: "2025-09-03"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE)
+```
+
+## Geographic regions
+
+```{r}
+# Add the census tracts
+census_tracts <- sf::st_read("Data/raw data/tlgdb_2020_a_us_substategeo.gdb", layer = "Census_Tract")
+census_tracts <- census_tracts %>%
+  select("GEOID", "NAMELSAD", "SHAPE") %>%
+  rename("census_tract_id" = "GEOID",
+         "census_tract_name" = "NAMELSAD")
+census_tracts$county_id <- str_sub(census_tracts$census_tract_id, 1, 5)
+census_tracts$state_id <- str_sub(census_tracts$census_tract_id, 1, 2)
+counties <- sf::st_read("Data/raw data/tlgdb_2020_a_us_substategeo.gdb", layer = "County")
+counties <- counties %>%
+  select("GEOID", "NAMELSAD") %>%
+  rename("county_id" = "GEOID",
+         "county_name" = "NAMELSAD") %>%
+  st_drop_geometry()
+census_tracts <- left_join(census_tracts, counties, by = "county_id")
+
+rm(counties)
+```
+
+## Add the 2023 (cohort 1) energy communities: IRS notice 2023-29
+
+```{r}
+coal_closure <- read.csv("Data/raw data/IRA_Coal_Closure_Energy_Comm_2023v2/Coal_Closure_Energy_Communities_2023v2.csv")
+coal_closure$geoid_tract_2020 <- str_pad(coal_closure$geoid_tract_2020, 11, pad = "0")
+EC_employ <- read.csv("Data/raw data/MSA_NMSA_FEE_EC_Status_2023v2/MSA_NMSA_FFE_EC_2023v2.csv")
+EC_employ$geoid_cty_2020 <- str_pad(EC_employ$geoid_cty_2020, 5, pad = "0")
+coal_closure_mine <- coal_closure %>%
+  filter(Tract_Status %in% c("is an energy community due to a coal mine closure"))
+coal_closure_mine <- unique(coal_closure_mine$geoid_tract_2020)
+coal_closure_generator <- coal_closure %>%
+  filter(Generator_Closure == "Yes")
+coal_closure_generator <- unique(coal_closure_generator$geoid_tract_2020)
+coal_closure_adjacent <- coal_closure %>%
+  filter(Adjacent_to_Closure == "Yes")
+coal_closure_adjacent <- unique(coal_closure_adjacent$geoid_tract_2020)
+EC_employ <- unique(EC_employ[EC_employ$EC_qual_status == "Yes", ]$geoid_cty_2020)
+
+data <- census_tracts
+
+data$coal_mine_closure_official_cohort_1 <- ifelse(data$census_tract_id %in% coal_closure_mine, 1, 0)
+data$generator_closure_official_cohort_1 <- ifelse(data$census_tract_id %in% coal_closure_generator, 1, 0)
+data$adjacent_closure_official_cohort_1 <- ifelse(data$census_tract_id %in% coal_closure_adjacent, 1, 0)
+data$unemployment_official_msa_cohort_1 <- ifelse(data$county_id %in% EC_employ, 1, 0)
+
+rm(coal_closure, EC_employ, coal_closure_adjacent, coal_closure_generator, coal_closure_mine)
+```
+
+## Add the 2023 (cohort 2) energy communities: IRS notice 2024-30
+
+```{r}
+coal_closure <- read.csv("Data/raw data/IRA_Coal_Closure_Energy_Comm_2023v2/Coal_Closure_Energy_Communities_2023v2.csv")
+coal_closure$geoid_tract_2020 <- str_pad(coal_closure$geoid_tract_2020, 11, pad = "0")
+EC_employ <- read.csv("Data/raw data/MSA_NMSA_EC_FFE_Status_v2023_3/MSA_NonMSA_EnergyCommunities_FossilFuelEmp_2023v3.csv")
+EC_employ$geoid_county_2020 <- str_pad(EC_employ$geoid_county_2020, 5, pad = "0")
+coal_closure_mine <- coal_closure %>%
+  filter(Tract_Status %in% c("is an energy community due to a coal mine closure"))
+coal_closure_mine <- unique(coal_closure_mine$geoid_tract_2020)
+coal_closure_generator <- coal_closure %>%
+  filter(Generator_Closure == "Yes")
+coal_closure_generator <- unique(coal_closure_generator$geoid_tract_2020)
+coal_closure_adjacent <- coal_closure %>%
+  filter(Adjacent_to_Closure == "Yes")
+coal_closure_adjacent <- unique(coal_closure_adjacent$geoid_tract_2020)
+EC_employ <- unique(EC_employ[EC_employ$ec_qual_status == "Yes", ]$geoid_county_2020)
+
+data$coal_mine_closure_official_cohort_2 <- ifelse(data$census_tract_id %in% coal_closure_mine, 1, 0)
+data$generator_closure_official_cohort_2 <- ifelse(data$census_tract_id %in% coal_closure_generator, 1, 0)
+data$adjacent_closure_official_cohort_2 <- ifelse(data$census_tract_id %in% coal_closure_adjacent, 1, 0)
+data$unemployment_official_msa_cohort_2 <- ifelse(data$county_id %in% EC_employ, 1, 0)
+
+rm(coal_closure, EC_employ, coal_closure_adjacent, coal_closure_generator, coal_closure_mine)
+```
+
+## Add the 2024 (cohort 3) energy communities: IRS notice 2024-48
+
+```{r}
+coal_closure <- read.csv("Data/raw data/Coal_Closures_EnergyComm_v2024_1/IRA_EnergyComm_CTracts_CoalClosures_v2024_1.csv")
+coal_closure$geoid_tract_2020 <- str_pad(coal_closure$geoid_tract_2020, 11, pad = "0")
+EC_employ <- read.csv("Data/raw data/MSA_NMSA_EC_FFE_v2024_1/MSA_NonMSA_EnergyCommunities_FossilFuelEmp_v2024_1.csv")
+EC_employ$geoid_county_2020 <- str_pad(EC_employ$geoid_county_2020, 5, pad = "0")
+coal_closure_mine <- coal_closure %>%
+  filter(Mine_Closure == "Yes")
+coal_closure_mine <- unique(coal_closure_mine$geoid_tract_2020)
+coal_closure_generator <- coal_closure %>%
+  filter(Generator_Closure == "Yes")
+coal_closure_generator <- unique(coal_closure_generator$geoid_tract_2020)
+coal_closure_adjacent <- coal_closure %>%
+  filter(Adjacent_to_Closure == "Yes")
+coal_closure_adjacent <- unique(coal_closure_adjacent$geoid_tract_2020)
+EC_employ <- unique(EC_employ[EC_employ$ec_qual_status == "Yes", ]$geoid_county_2020)
+
+data$coal_mine_closure_official_cohort_3 <- ifelse(data$census_tract_id %in% coal_closure_mine, 1, 0)
+data$generator_closure_official_cohort_3 <- ifelse(data$census_tract_id %in% coal_closure_generator, 1, 0)
+data$adjacent_closure_official_cohort_3 <- ifelse(data$census_tract_id %in% coal_closure_adjacent, 1, 0)
+data$unemployment_official_msa_cohort_3 <- ifelse(data$county_id %in% EC_employ, 1, 0)
+
+rm(coal_closure, EC_employ, coal_closure_adjacent, coal_closure_generator, coal_closure_mine)
+```
+
+## Add binary indicator for energy communities
+
+```{r}
+data <- data %>%
+  mutate(ec_ind_official_cohort_1 = ifelse((coal_mine_closure_official_cohort_1 == 1 | 
+                                   generator_closure_official_cohort_1 == 1 | 
+                                   adjacent_closure_official_cohort_1 == 1) |
+                                   unemployment_official_msa_cohort_1 == 1, 
+                                   1, 0))
+
+data <- data %>%
+  mutate(ec_ind_official_cohort_2 = ifelse((coal_mine_closure_official_cohort_2 == 1 | 
+                                   generator_closure_official_cohort_2 == 1 | 
+                                   adjacent_closure_official_cohort_2 == 1) |
+                                   unemployment_official_msa_cohort_2 == 1, 
+                                   1, 0))
+
+data <- data %>%
+  mutate(ec_ind_official_cohort_3 = ifelse((coal_mine_closure_official_cohort_3 == 1 | 
+                                   generator_closure_official_cohort_3 == 1 | 
+                                   adjacent_closure_official_cohort_3 == 1) |
+                                   unemployment_official_msa_cohort_3 == 1, 
+                                   1, 0))
+```
+
+## Load Solar Generator Data
+
+```{r load_generators}
+# Function to load quarterly generator data
+load_generators <- function(file_path, year, quarter, existing_ids = NULL) {
+  gens <- read_excel(file_path, skip = 2, sheet = "Planned") %>%
+    filter(!is.na(Latitude), !is.na(Longitude)) %>%
+    st_as_sf(coords = c("Longitude", "Latitude"), crs = 4326) %>%
+    st_transform(crs = st_crs(census_tracts)) %>%
+    mutate(
+      ID = paste0(`Entity ID`, `Plant ID`),
+      year = year,
+      quarter = quarter
+    ) %>%
+    filter(Technology == "Solar Photovoltaic") %>%
+    select(ID, `Nameplate Capacity (MW)`, year, quarter)
+  
+  # Filter out existing IDs if provided
+  if (!is.null(existing_ids)) {
+    gens <- gens %>% filter(!(ID %in% existing_ids))
+  }
+  
+  return(gens)
+}
+
+# Load all quarterly data
+quarters <- list(
+  list(file = "january_generator2023.xlsx", year = 2023, quarter = "Q1"),
+  list(file = "april_generator2023.xlsx", year = 2023, quarter = "Q2"),
+  list(file = "july_generator2023.xlsx", year = 2023, quarter = "Q3"),
+  list(file = "october_generator2023.xlsx", year = 2023, quarter = "Q4"),
+  list(file = "january_generator2024.xlsx", year = 2024, quarter = "Q1"),
+  list(file = "april_generator2024.xlsx", year = 2024, quarter = "Q2"),
+  list(file = "july_generator2024.xlsx", year = 2024, quarter = "Q3"),
+  list(file = "october_generator2024.xlsx", year = 2024, quarter = "Q4")
+)
+
+all_generators <- NULL
+existing_ids <- c()
+
+for (q in quarters) {
+  gens <- load_generators(
+    paste0("Data/raw data/eia_monthly_data/", q$file),
+    q$year, q$quarter, existing_ids
+  )
+  all_generators <- rbind(all_generators, gens)
+  existing_ids <- c(existing_ids, gens$ID)
+}
+
+cat("Total generators loaded:", nrow(all_generators), "\n")
+```
+
+## Process Solar Generators in Energy Communities
+
+```{r filter_ec_generators}
+# Join generators with EC data
+all_generators <- st_join(
+  all_generators,
+  data %>% select(census_tract_id, ec_ind_official_cohort_1, ec_ind_official_cohort_2, ec_ind_official_cohort_3),
+  join = st_within
+) 
+
+# Calculate mean per generator BEFORE aggregating (for verification)
+mean_nameplate_per_generator <- all_generators %>%
+  st_drop_geometry() %>%
+  filter(
+    (year == 2023 & ec_ind_official_cohort_1 == 1) |
+    (year == 2024 & quarter %in% c("Q1") & ec_ind_official_cohort_1 == 1) |
+    (year == 2024 & quarter %in% c("Q2") & ec_ind_official_cohort_2 == 1) |
+    (year == 2024 & quarter %in% c("Q3", "Q4") & ec_ind_official_cohort_3 == 1)
+  ) %>%
+  pull(`Nameplate Capacity (MW)`) %>%
+  mean(na.rm = TRUE)
+
+cat("\n=== SOLAR GENERATORS IN ECs ===\n")
+cat("Mean nameplate capacity per generator:", round(mean_nameplate_per_generator, 2), "MW\n")
+
+# Aggregate to tract level with sum and count
+generators_by_tract <- all_generators %>%
+  st_drop_geometry() %>%
+  filter(
+    (year == 2023 & ec_ind_official_cohort_1 == 1) |
+    (year == 2024 & quarter %in% c("Q1") & ec_ind_official_cohort_1 == 1) |
+    (year == 2024 & quarter %in% c("Q2") & ec_ind_official_cohort_2 == 1) |
+    (year == 2024 & quarter %in% c("Q3", "Q4") & ec_ind_official_cohort_3 == 1)
+  ) %>%
+  select(census_tract_id, `Nameplate Capacity (MW)`) %>%
+  group_by(census_tract_id) %>%
+  summarise(
+    total_nameplate_capacity_mw = sum(`Nameplate Capacity (MW)`, na.rm = TRUE),
+    n_generators = n()
+  )
+
+census_tracts <- left_join(data, generators_by_tract, by = "census_tract_id")
+
+# Verify the weighted mean
+verification_mean <- sum(census_tracts$total_nameplate_capacity_mw, na.rm = TRUE) / 
+                     sum(census_tracts$n_generators, na.rm = TRUE)
+cat("Verification (from tract data):", round(verification_mean, 2), "MW\n")
+```
+
+## Process Solar Investment in Energy Communities
+
+```{r investment_analysis}
+investment <- read.csv("Data/raw data/CIM/manufacturing_energy_and_industry_facility_metadata.csv", skip = 5) %>%
+  mutate(
+    Announcement_Date = as.Date(Announcement_Date),
+    year = year(Announcement_Date),
+    quarter = quarter(Announcement_Date),
+    Estimated_Total_Facility_CAPEX = as.numeric(Estimated_Total_Facility_CAPEX),
+    # Convert millions to actual dollars if needed
+    Estimated_Total_Facility_CAPEX = Estimated_Total_Facility_CAPEX * 1e6
+  ) %>%
+  filter(
+    year %in% c(2023, 2024),
+    Segment == "Energy and Industry",
+    Technology == "Solar"
+  ) %>%
+  rename(census_tract_id = census_tract_2020_geoid) %>%
+  mutate(census_tract_id = str_pad(as.character(census_tract_id), 11, pad = "0")) 
+
+# Join with EC data
+investment <- left_join(
+  investment, 
+  data %>% select(census_tract_id, ec_ind_official_cohort_1, ec_ind_official_cohort_2, ec_ind_official_cohort_3) %>% st_drop_geometry(), 
+  by = "census_tract_id"
+) 
+
+# Lets calculate how many investments were made in ECs
+investment_temp <- investment %>%
+  filter((ec_ind_official_cohort_1 == 1 & ((year == 2022 & quarter %in% c(1, 2)) | year == 2023 | (year == 2024 & quarter == 1))) |
+           (ec_ind_official_cohort_2 == 1 & year == 2024 & quarter == 2) |
+           (ec_ind_official_cohort_3 == 1 & year == 2024 & quarter %in% c(3, 4)))
+
+# Calculate mean per facility BEFORE aggregating (for verification)
+mean_capex_per_facility <- investment %>%
+  filter(
+    (year == 2023 & ec_ind_official_cohort_1 == 1) |
+    (year == 2024 & quarter %in% c("Q1") & ec_ind_official_cohort_1 == 1) |
+    (year == 2024 & quarter %in% c("Q2") & ec_ind_official_cohort_2 == 1) |
+    (year == 2024 & quarter %in% c("Q3", "Q4") & ec_ind_official_cohort_3 == 1)
+  ) %>%
+  pull(Estimated_Total_Facility_CAPEX) %>%
+  mean(na.rm = TRUE)
+
+total_capex_all <- investment %>%
+  filter(
+    (year == 2023 & ec_ind_official_cohort_1 == 1) |
+    (year == 2024 & quarter %in% c("Q1") & ec_ind_official_cohort_1 == 1) |
+    (year == 2024 & quarter %in% c("Q2") & ec_ind_official_cohort_2 == 1) |
+    (year == 2024 & quarter %in% c("Q3", "Q4") & ec_ind_official_cohort_3 == 1)
+  ) %>%
+  pull(Estimated_Total_Facility_CAPEX) %>%
+  sum(na.rm = TRUE)
+
+cat("\n=== SOLAR INVESTMENT IN ECs ===\n")
+cat("Mean CAPEX per facility: $", format(mean_capex_per_facility, big.mark = ",", scientific = FALSE), "\n")
+cat("Total CAPEX: $", format(total_capex_all, big.mark = ",", scientific = FALSE), "\n")
+
+# Aggregate to tract level with sum and count
+investment_by_tract <- investment %>%
+  filter(
+    (year == 2023 & ec_ind_official_cohort_1 == 1) |
+    (year == 2024 & quarter %in% c("Q1") & ec_ind_official_cohort_1 == 1) |
+    (year == 2024 & quarter %in% c("Q2") & ec_ind_official_cohort_2 == 1) |
+    (year == 2024 & quarter %in% c("Q3", "Q4") & ec_ind_official_cohort_3 == 1)
+  ) %>%
+  select(census_tract_id, Estimated_Total_Facility_CAPEX) %>%
+  group_by(census_tract_id) %>%
+  summarise(
+    total_capex = sum(Estimated_Total_Facility_CAPEX, na.rm = TRUE),
+    n_investments = n()
+  )
+
+census_tracts <- left_join(census_tracts, investment_by_tract, by = "census_tract_id")
+
+# Verify the weighted mean
+verification_mean_capex <- sum(census_tracts$total_capex, na.rm = TRUE) / 
+                           sum(census_tracts$n_investments, na.rm = TRUE)
+cat("Verification (from tract data): $", format(verification_mean_capex, big.mark = ",", scientific = FALSE), "\n")
+```
+
+## Process Fossil Fuel Generators
+
+```{r fossil_generators}
+# Load fossil fuel generators (Q2 2022 baseline)
+fossil_generators <- read_excel(
+  "Data/raw data/eia_monthly_data/april_generator2022.xlsx",
+  skip = 2
+) %>%
+  filter(
+    Sector == "Electric Utility",
+    !is.na(Latitude), !is.na(Longitude),
+    Status == "(OP) Operating",
+    Technology %in% c(
+      "Natural Gas Steam Turbine", "Conventional Steam Coal",
+      "Natural Gas Fired Combined Cycle", "Natural Gas Fired Combustion Turbine",
+      "Petroleum Liquids", "Natural Gas Internal Combustion Engine",
+      "Coal Integrated Gasification Combined Cycle", "Petroleum Coke",
+      "Natural Gas with Compressed Air Storage", "Other Natural Gas"
+    )
+  ) %>%
+  st_as_sf(coords = c("Longitude", "Latitude"), crs = 4326) %>%
+  st_transform(crs = st_crs(census_tracts))
+
+# Heat rates (Btu per kWh) from EIA
+heat_rates <- list(
+  coal = 10026, ng_steam = 10295, ng_turbine = 11030, ng_ic = 8894, ng_cc = 7596,
+  petro_steam = 10263, petro_turbine = 13217, petro_ic = 10475, petro_cc = 9204
+)
+
+# Emission factors (kg CO2 per MMBtu)
+emission_factors <- list(
+  coal_bituminous = 93.28, coal_subbituminous = 97.17, coal_residential = 96.10,
+  coal_lignite = 97.72, natural_gas = 52.91,
+  petro_dfo = (73.96 + 75.04) / 2, petro_rfo = (72.93 + 75.10) / 2,
+  petro_jf = 69.25, petro_ker = 75.20, petro_pc = 102.41,
+  petro_pg = 62.87, petro_sgp = 66.88
+)
+
+# Capacity factors from EIA (2022 values)
+capacity_factors_fossil <- list(
+  coal = 0.484, ng_cc = 0.566, ng_turbine = 0.129, ng_steam = 0.156,
+  ng_ic = 0.181, petro_steam = 0.132, petro_turbine = 0.016, petro_ic = 0.018
+)
+
+# Assign heat rates, emission factors, and capacity factors
+fossil_generators <- fossil_generators %>%
+  mutate(
+    # Heat rates
+    heat_rate = case_when(
+      Technology %in% c("Conventional Steam Coal", "Coal Integrated Gasification Combined Cycle") ~ heat_rates$coal,
+      Technology == "Natural Gas Steam Turbine" ~ heat_rates$ng_steam,
+      Technology == "Natural Gas Fired Combined Cycle" ~ heat_rates$ng_cc,
+      Technology == "Natural Gas Fired Combustion Turbine" ~ heat_rates$ng_turbine,
+      Technology == "Natural Gas Internal Combustion Engine" ~ heat_rates$ng_ic,
+      Technology == "Natural Gas with Compressed Air Storage" ~ heat_rates$ng_cc,
+      Technology == "Other Natural Gas" ~ mean(c(heat_rates$ng_cc, heat_rates$ng_turbine, heat_rates$ng_steam, heat_rates$ng_ic)),
+      Technology %in% c("Petroleum Liquids", "Petroleum Coke") & `Prime Mover Code` == "IC" ~ heat_rates$petro_ic,
+      Technology %in% c("Petroleum Liquids", "Petroleum Coke") & `Prime Mover Code` %in% c("ST", "CA") ~ heat_rates$petro_steam,
+      Technology %in% c("Petroleum Liquids", "Petroleum Coke") & `Prime Mover Code` %in% c("CT", "GT") ~ heat_rates$petro_turbine,
+      TRUE ~ NA_real_
+    ),
+    # Emission factors
+    emission_factor = case_when(
+      Technology %in% c("Conventional Steam Coal", "Coal Integrated Gasification Combined Cycle") & `Energy Source Code` == "BIT" ~ emission_factors$coal_bituminous,
+      Technology %in% c("Conventional Steam Coal", "Coal Integrated Gasification Combined Cycle") & `Energy Source Code` == "SUB" ~ emission_factors$coal_subbituminous,
+      Technology %in% c("Conventional Steam Coal", "Coal Integrated Gasification Combined Cycle") & `Energy Source Code` == "RC" ~ emission_factors$coal_residential,
+      Technology %in% c("Conventional Steam Coal", "Coal Integrated Gasification Combined Cycle") & `Energy Source Code` == "LIG" ~ emission_factors$coal_lignite,
+      Technology %in% c("Conventional Steam Coal", "Coal Integrated Gasification Combined Cycle") & `Energy Source Code` == "SGC" ~ mean(c(emission_factors$coal_bituminous, emission_factors$coal_subbituminous, emission_factors$coal_residential, emission_factors$coal_lignite)),
+      Technology %in% c("Natural Gas Steam Turbine", "Natural Gas Fired Combined Cycle", "Natural Gas Fired Combustion Turbine", "Natural Gas Internal Combustion Engine", "Natural Gas with Compressed Air Storage", "Other Natural Gas") ~ emission_factors$natural_gas,
+      Technology %in% c("Petroleum Liquids", "Petroleum Coke") & `Energy Source Code` == "DFO" ~ emission_factors$petro_dfo,
+      Technology %in% c("Petroleum Liquids", "Petroleum Coke") & `Energy Source Code` == "RFO" ~ emission_factors$petro_rfo,
+      Technology %in% c("Petroleum Liquids", "Petroleum Coke") & `Energy Source Code` == "JF" ~ emission_factors$petro_jf,
+      Technology %in% c("Petroleum Liquids", "Petroleum Coke") & `Energy Source Code` == "KER" ~ emission_factors$petro_ker,
+      Technology %in% c("Petroleum Liquids", "Petroleum Coke") & `Energy Source Code` == "PC" ~ emission_factors$petro_pc,
+      Technology %in% c("Petroleum Liquids", "Petroleum Coke") & `Energy Source Code` == "PG" ~ emission_factors$petro_pg,
+      Technology %in% c("Petroleum Liquids", "Petroleum Coke") & `Energy Source Code` == "SGP" ~ emission_factors$petro_sgp,
+      TRUE ~ NA_real_
+    ),
+    # Capacity factors
+    capacity_factor = case_when(
+      Technology %in% c("Conventional Steam Coal", "Coal Integrated Gasification Combined Cycle") ~ capacity_factors_fossil$coal,
+      Technology == "Natural Gas Steam Turbine" ~ capacity_factors_fossil$ng_steam,
+      Technology == "Natural Gas Fired Combined Cycle" ~ capacity_factors_fossil$ng_cc,
+      Technology == "Natural Gas Fired Combustion Turbine" ~ capacity_factors_fossil$ng_turbine,
+      Technology == "Natural Gas Internal Combustion Engine" ~ capacity_factors_fossil$ng_ic,
+      Technology == "Natural Gas with Compressed Air Storage" ~ capacity_factors_fossil$ng_cc,
+      Technology == "Other Natural Gas" ~ mean(c(capacity_factors_fossil$ng_cc, capacity_factors_fossil$ng_turbine, capacity_factors_fossil$ng_steam, capacity_factors_fossil$ng_ic)),
+      Technology %in% c("Petroleum Liquids", "Petroleum Coke") & `Prime Mover Code` == "GT" ~ capacity_factors_fossil$petro_turbine,
+      Technology %in% c("Petroleum Liquids", "Petroleum Coke") & `Prime Mover Code` == "IC" ~ capacity_factors_fossil$petro_ic,
+      Technology %in% c("Petroleum Liquids", "Petroleum Coke") & `Prime Mover Code` %in% c("ST", "CA") ~ capacity_factors_fossil$petro_steam,
+      Technology %in% c("Petroleum Liquids", "Petroleum Coke") & `Prime Mover Code` == "CT" ~ capacity_factors_fossil$petro_turbine,
+      TRUE ~ NA_real_
+    ),
+    # Calculate emissions
+    kg_CO2_MWh = (heat_rate / 1000) * emission_factor,
+    annual_MWh = `Nameplate Capacity (MW)` * capacity_factor * 8760,
+    annual_tCO2 = annual_MWh * kg_CO2_MWh / 1000
+  )
+
+cat("\n=== FOSSIL FUEL GENERATORS ===\n")
+cat("Total fossil generators loaded:", nrow(fossil_generators), "\n")
+```
+
+## Aggregate Fossil Generators to Census Tracts
+
+```{r fossil_ec}
+# Join with census tracts
+fossil_generators <- st_join(
+  fossil_generators,
+  census_tracts %>% select(census_tract_id),
+  join = st_within
+)
+
+# Aggregate to tract level
+fossil_by_tract <- fossil_generators %>%
+  st_drop_geometry() %>%
+  select(census_tract_id, annual_tCO2, annual_MWh) %>%
+  group_by(census_tract_id) %>%
+  summarise(
+    annual_tCO2 = sum(annual_tCO2, na.rm = TRUE),
+    annual_MWh = sum(annual_MWh, na.rm = TRUE)
+  )
+
+census_tracts <- left_join(census_tracts, fossil_by_tract, by = "census_tract_id")
+
+# Calculate weighted CO2 intensity for ECs
+ec_fossil_stats <- census_tracts %>%
+  filter((ec_ind_official_cohort_1 == 1 | ec_ind_official_cohort_2 == 1 | ec_ind_official_cohort_3 == 1) & !is.na(annual_MWh) & annual_MWh > 0) %>%
+  st_drop_geometry() %>%
+  summarise(
+    total_tCO2 = sum(annual_tCO2, na.rm = TRUE),
+    total_MWh = sum(annual_MWh, na.rm = TRUE),
+    weighted_co2_intensity = total_tCO2 / total_MWh
+  )
+
+cat("Weighted CO2 intensity in ECs:", round(ec_fossil_stats$weighted_co2_intensity, 4), "tCO2/MWh\n")
+```
+
+## Write dataset to stata
+
+```{r}
+census_tracts <- census_tracts %>%
+  st_drop_geometry() %>%
+  select(census_tract_id,
+         county_id,
+    ec_ind_official_cohort_1,
+    ec_ind_official_cohort_2,
+    ec_ind_official_cohort_3,
+    total_nameplate_capacity_mw,
+    n_generators,
+    total_capex,
+    n_investments,
+    annual_tCO2,
+    annual_MWh)
+
+# Write to CSV
+write.csv(
+  census_tracts,
+  "Data/constructed data/back_envelope_panel_A.csv",
+  row.names = FALSE
+)
+```
+
+## Add Job Vacancy Data
+
+```{r job_analysis}
+labor_data <- read.csv(
+  "C:/Users/Keuze001/Dropbox/IRA reproducibility package/Data/constructed data/final_labor_demand_dataset_stata.csv"
+) %>%
+  filter(
+    (year == 2023 & ec_ind_official_cohort_1 == 1) |
+    (year == 2024 & quarter %in% c("Q1") & ec_ind_official_cohort_1 == 1) |
+    (year == 2024 & quarter %in% c("Q2") & ec_ind_official_cohort_2 == 1) |
+    (year == 2024 & quarter %in% c("Q3", "Q4") & ec_ind_official_cohort_3 == 1)
+  ) %>%
+  mutate(
+    number_solar_vacancies = solar_technologies_job_vacancies_percentage * total_count,
+    county_id = str_pad(as.character(county_id), 5, pad = "0")
+  ) %>%
+  select(number_solar_vacancies, county_id) %>%
+  group_by(county_id) %>%
+  summarise(number_solar_vacancies = sum(number_solar_vacancies, na.rm = TRUE))
+
+counties <- census_tracts %>%
+  select(total_capex, county_id) %>%
+  group_by(county_id) %>%
+  summarise(total_capex = sum(total_capex, na.rm = TRUE))
+
+counties <- left_join(counties, labor_data, by = "county_id")
+```
+
+## Export Final Dataset
+
+```{r export}
+# Write to CSV
+write.csv(
+  counties,
+  "Data/constructed data/back_envelope_panel_B.csv",
+  row.names = FALSE
+)
+```

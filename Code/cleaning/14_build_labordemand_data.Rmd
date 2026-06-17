@@ -1,0 +1,695 @@
+---
+title: "04_build_labordemand_data"
+output: html_document
+date: "2025-07-16"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Geographic regions
+
+Here, we lay the groundwork by providing all the geographic regions in the dataset.
+
+```{r}
+# Add the census tracts
+census_tracts <- sf::st_read("Data/raw data/tlgdb_2020_a_us_substategeo.gdb", layer = "Census_Tract")
+census_tracts <- census_tracts %>%
+  select("GEOID", "NAMELSAD", "SHAPE") %>%
+  rename("census_tract_id" = "GEOID",
+         "census_tract_name" = "NAMELSAD")
+census_tracts$county_id <- str_sub(census_tracts$census_tract_id, 1, 5)
+census_tracts$state_id <- str_sub(census_tracts$census_tract_id, 1, 2)
+counties <- sf::st_read("Data/raw data/tlgdb_2020_a_us_substategeo.gdb", layer = "County")
+counties <- counties %>%
+  select("GEOID", "NAMELSAD") %>%
+  rename("county_id" = "GEOID",
+         "county_name" = "NAMELSAD") %>%
+  st_drop_geometry()
+census_tracts <- left_join(census_tracts, counties, by = "county_id")
+
+rm(counties)
+```
+
+## Add the 2023 (cohort 1) energy communities: IRS notice 2023-29
+
+```{r}
+coal_closure <- read.csv("Data/raw data/IRA_Coal_Closure_Energy_Comm_2023v2/Coal_Closure_Energy_Communities_2023v2.csv")
+coal_closure$geoid_tract_2020 <- str_pad(coal_closure$geoid_tract_2020, 11, pad = "0")
+EC_employ <- read.csv("Data/raw data/MSA_NMSA_FEE_EC_Status_2023v2/MSA_NMSA_FFE_EC_2023v2.csv")
+EC_employ$geoid_cty_2020 <- str_pad(EC_employ$geoid_cty_2020, 5, pad = "0")
+coal_closure_mine <- coal_closure %>%
+  filter(Tract_Status %in% c("is an energy community due to a coal mine closure"))
+coal_closure_mine <- unique(coal_closure_mine$geoid_tract_2020)
+coal_closure_generator <- coal_closure %>%
+  filter(Generator_Closure == "Yes")
+coal_closure_generator <- unique(coal_closure_generator$geoid_tract_2020)
+coal_closure_adjacent <- coal_closure %>%
+  filter(Adjacent_to_Closure == "Yes")
+coal_closure_adjacent <- unique(coal_closure_adjacent$geoid_tract_2020)
+EC_employ <- unique(EC_employ[EC_employ$EC_qual_status == "Yes", ]$geoid_cty_2020)
+
+data <- census_tracts
+
+data$coal_mine_closure_official_cohort_1 <- ifelse(data$census_tract_id %in% coal_closure_mine, 1, 0)
+data$generator_closure_official_cohort_1 <- ifelse(data$census_tract_id %in% coal_closure_generator, 1, 0)
+data$adjacent_closure_official_cohort_1 <- ifelse(data$census_tract_id %in% coal_closure_adjacent, 1, 0)
+data$unemployment_official_msa_cohort_1 <- ifelse(data$county_id %in% EC_employ, 1, 0)
+
+rm(coal_closure, EC_employ, coal_closure_adjacent, coal_closure_generator, coal_closure_mine)
+```
+
+## Add the 2023 (cohort 2) energy communities: IRS notice 2024-30
+
+```{r}
+coal_closure <- read.csv("Data/raw data/IRA_Coal_Closure_Energy_Comm_2023v2/Coal_Closure_Energy_Communities_2023v2.csv")
+coal_closure$geoid_tract_2020 <- str_pad(coal_closure$geoid_tract_2020, 11, pad = "0")
+EC_employ <- read.csv("Data/raw data/MSA_NMSA_EC_FFE_Status_v2023_3/MSA_NonMSA_EnergyCommunities_FossilFuelEmp_2023v3.csv")
+EC_employ$geoid_county_2020 <- str_pad(EC_employ$geoid_county_2020, 5, pad = "0")
+coal_closure_mine <- coal_closure %>%
+  filter(Tract_Status %in% c("is an energy community due to a coal mine closure"))
+coal_closure_mine <- unique(coal_closure_mine$geoid_tract_2020)
+coal_closure_generator <- coal_closure %>%
+  filter(Generator_Closure == "Yes")
+coal_closure_generator <- unique(coal_closure_generator$geoid_tract_2020)
+coal_closure_adjacent <- coal_closure %>%
+  filter(Adjacent_to_Closure == "Yes")
+coal_closure_adjacent <- unique(coal_closure_adjacent$geoid_tract_2020)
+EC_employ <- unique(EC_employ[EC_employ$ec_qual_status == "Yes", ]$geoid_county_2020)
+
+data$coal_mine_closure_official_cohort_2 <- ifelse(data$census_tract_id %in% coal_closure_mine, 1, 0)
+data$generator_closure_official_cohort_2 <- ifelse(data$census_tract_id %in% coal_closure_generator, 1, 0)
+data$adjacent_closure_official_cohort_2 <- ifelse(data$census_tract_id %in% coal_closure_adjacent, 1, 0)
+data$unemployment_official_msa_cohort_2 <- ifelse(data$county_id %in% EC_employ, 1, 0)
+
+rm(coal_closure, EC_employ, coal_closure_adjacent, coal_closure_generator, coal_closure_mine)
+```
+
+## Add the 2024 (cohort 3) energy communities: IRS notice 2024-48
+
+```{r}
+coal_closure <- read.csv("Data/raw data/Coal_Closures_EnergyComm_v2024_1/IRA_EnergyComm_CTracts_CoalClosures_v2024_1.csv")
+coal_closure$geoid_tract_2020 <- str_pad(coal_closure$geoid_tract_2020, 11, pad = "0")
+EC_employ <- read.csv("Data/raw data/MSA_NMSA_EC_FFE_v2024_1/MSA_NonMSA_EnergyCommunities_FossilFuelEmp_v2024_1.csv")
+EC_employ$geoid_county_2020 <- str_pad(EC_employ$geoid_county_2020, 5, pad = "0")
+coal_closure_mine <- coal_closure %>%
+  filter(Mine_Closure == "Yes")
+coal_closure_mine <- unique(coal_closure_mine$geoid_tract_2020)
+coal_closure_generator <- coal_closure %>%
+  filter(Generator_Closure == "Yes")
+coal_closure_generator <- unique(coal_closure_generator$geoid_tract_2020)
+coal_closure_adjacent <- coal_closure %>%
+  filter(Adjacent_to_Closure == "Yes")
+coal_closure_adjacent <- unique(coal_closure_adjacent$geoid_tract_2020)
+EC_employ <- unique(EC_employ[EC_employ$ec_qual_status == "Yes", ]$geoid_county_2020)
+
+data$coal_mine_closure_official_cohort_3 <- ifelse(data$census_tract_id %in% coal_closure_mine, 1, 0)
+data$generator_closure_official_cohort_3 <- ifelse(data$census_tract_id %in% coal_closure_generator, 1, 0)
+data$adjacent_closure_official_cohort_3 <- ifelse(data$census_tract_id %in% coal_closure_adjacent, 1, 0)
+data$unemployment_official_msa_cohort_3 <- ifelse(data$county_id %in% EC_employ, 1, 0)
+
+rm(coal_closure, EC_employ, coal_closure_adjacent, coal_closure_generator, coal_closure_mine)
+```
+
+## Add binary indicator for energy communities
+
+```{r}
+data <- data %>%
+  mutate(ec_ind_official_cohort_1 = ifelse((coal_mine_closure_official_cohort_1 == 1 | 
+                                   generator_closure_official_cohort_1 == 1 | 
+                                   adjacent_closure_official_cohort_1 == 1) |
+                                   unemployment_official_msa_cohort_1 == 1, 
+                                   1, 0))
+
+data <- data %>%
+  mutate(ec_ind_official_cohort_2 = ifelse((coal_mine_closure_official_cohort_2 == 1 | 
+                                   generator_closure_official_cohort_2 == 1 | 
+                                   adjacent_closure_official_cohort_2 == 1) |
+                                   unemployment_official_msa_cohort_2 == 1, 
+                                   1, 0))
+
+data <- data %>%
+  mutate(ec_ind_official_cohort_3 = ifelse((coal_mine_closure_official_cohort_3 == 1 | 
+                                   generator_closure_official_cohort_3 == 1 | 
+                                   adjacent_closure_official_cohort_3 == 1) |
+                                   unemployment_official_msa_cohort_3 == 1, 
+                                   1, 0))
+```
+
+## Create a time-series aspect
+
+```{r}
+## Land Surface Area
+data <- st_as_sf(data)
+data$area <- st_area(data)/1000
+
+# We should have a row for each quarter-census tract combination
+quarters <- seq.Date(from = as.Date("2015-01-01"), to = as.Date("2024-12-31"), by = "quarter")
+census_tracts <- unique(data$census_tract_id)
+all_combinations <- expand.grid(census_tract_id = census_tracts, quarter_date = quarters)
+data <- merge(all_combinations, data, by = "census_tract_id", all.x = TRUE)
+data$year <- substr(data$quarter, 1, 4)
+data <- data %>%
+  mutate(quarter = quarters(quarter_date))
+
+rm(census_tracts, all_combinations, quarters)
+```
+
+## Add the Population by census tract
+
+```{r}
+population <- read.csv("Data/raw data/DECENNIALDP2020.DP1_2024-04-08T040530/DECENNIALDP2020.DP1-Data.csv")
+population <- population[-1, ]
+population <- subset(population, select = c("GEO_ID", "NAME", "DP1_0001C", "DP1_0006C", "DP1_0007C", "DP1_0008C", "DP1_0009C", "DP1_0010C", "DP1_0011C", "DP1_0012C", "DP1_0013C", "DP1_0014C"))
+population <- population %>%
+  rename("total_population_2020" = "DP1_0001C")
+population$working_age_population_2020 <- as.numeric(population$DP1_0006C) + as.numeric(population$DP1_0007C) + as.numeric(population$DP1_0008C) + as.numeric(population$DP1_0009C) + as.numeric(population$DP1_0010C) + as.numeric(population$DP1_0011C) + as.numeric(population$DP1_0012C) + as.numeric(population$DP1_0013C) + as.numeric(population$DP1_0014C)
+population$census_tract_id <- sub(".*US", "", population$GEO_ID)
+population <- population %>%
+  select(census_tract_id, total_population_2020, working_age_population_2020)
+
+# Merge the demographics with the complete dataset
+data <- left_join(data, population, by = "census_tract_id")
+
+rm(population)
+```
+
+## Transform the dataframe so that we have counties as the basis
+
+```{r}
+data <- data %>%
+  st_drop_geometry() %>%
+  select(census_tract_id, county_id, county_name, state_id, coal_mine_closure_official_cohort_1, generator_closure_official_cohort_1, adjacent_closure_official_cohort_1, unemployment_official_msa_cohort_1, coal_mine_closure_official_cohort_2, generator_closure_official_cohort_2, adjacent_closure_official_cohort_2, unemployment_official_msa_cohort_2, coal_mine_closure_official_cohort_3, generator_closure_official_cohort_3, adjacent_closure_official_cohort_3, unemployment_official_msa_cohort_3, ec_ind_official_cohort_1, ec_ind_official_cohort_2, ec_ind_official_cohort_3, area, year, quarter, total_population_2020, working_age_population_2020) %>% unique()
+data$area <- as.numeric(data$area)
+data$total_population_2020 <- as.numeric(data$total_population_2020)
+
+data <- data %>%
+  group_by(county_id, year, quarter) %>%
+  summarise(county_name = first(county_name),
+            state_id = first(state_id),
+            ec_ind_official_cohort_1_percentage = mean(ec_ind_official_cohort_1, na.rm = TRUE),
+            ec_ind_official_cohort_2_percentage = mean(ec_ind_official_cohort_2, na.rm = TRUE),
+            ec_ind_official_cohort_3_percentage = mean(ec_ind_official_cohort_3, na.rm = TRUE),
+            ec_ind_official_cohort_1_area_weighted = weighted.mean(ec_ind_official_cohort_1, area, na.rm = TRUE),
+            ec_ind_official_cohort_2_area_weighted = weighted.mean(ec_ind_official_cohort_2, area, na.rm = TRUE),
+            ec_ind_official_cohort_3_area_weighted = weighted.mean(ec_ind_official_cohort_3, area, na.rm = TRUE),
+            ec_ind_official_cohort_1_population_weighted = weighted.mean(ec_ind_official_cohort_1, total_population_2020, na.rm = TRUE),
+            ec_ind_official_cohort_2_population_weighted = weighted.mean(ec_ind_official_cohort_2, total_population_2020, na.rm = TRUE),
+            ec_ind_official_cohort_3_population_weighted = weighted.mean(ec_ind_official_cohort_3, total_population_2020, na.rm = TRUE),
+            ec_ind_official_cohort_1_working_population_weighted = weighted.mean(ec_ind_official_cohort_1, working_age_population_2020, na.rm = TRUE),
+            ec_ind_official_cohort_2_working_population_weighted = weighted.mean(ec_ind_official_cohort_2, working_age_population_2020, na.rm = TRUE),
+            ec_ind_official_cohort_3_working_population_weighted = weighted.mean(ec_ind_official_cohort_3, working_age_population_2020, na.rm = TRUE),
+            area = sum(area, na.rm = TRUE),
+            total_population_2020 = sum(total_population_2020, na.rm = TRUE),
+            working_age_population_2020 = sum(working_age_population_2020, na.rm = TRUE))
+```
+
+## Add the number of employed and labor force
+
+```{r}
+# Add the number of employed and labor force
+unemployment <- read.csv("Data/raw data/Unemployment2023.csv")
+civilian_labor_force <- unemployment %>%
+  filter(Attribute %in% c("Civilian_labor_force_2010", "Civilian_labor_force_2011", "Civilian_labor_force_2012", "Civilian_labor_force_2013", "Civilian_labor_force_2014", "Civilian_labor_force_2015", "Civilian_labor_force_2016", "Civilian_labor_force_2017", "Civilian_labor_force_2018", "Civilian_labor_force_2019", "Civilian_labor_force_2020", "Civilian_labor_force_2021", "Civilian_labor_force_2022", "Civilian_labor_force_2023"))
+civilian_labor_force$year <- sub(".*_(\\d{4})$", "\\1", civilian_labor_force$Attribute)
+civilian_labor_force <- civilian_labor_force %>%
+  select(FIPS_Code, year, Value) %>%
+  rename("county_id" = "FIPS_Code",
+         "civilian_labor_force" = "Value")
+employed <- unemployment %>%
+  filter(Attribute %in% c("Employed_2010", "Employed_2011", "Employed_2012", "Employed_2013", "Employed_2014", "Employed_2015", "Employed_2016", "Employed_2017", "Employed_2018", "Employed_2019", "Employed_2020", "Employed_2021", "Employed_2022", "Employed_2023"))
+employed$year <- sub(".*_(\\d{4})$", "\\1", employed$Attribute)
+employed <- employed %>%
+  select(FIPS_Code, year, Value) %>%
+  rename("county_id" = "FIPS_Code",
+         "employed" = "Value")
+  
+employed <- left_join(employed, civilian_labor_force, by = c("county_id", "year"))
+employed$county_id <- str_pad(employed$county_id, 5, pad = "0")
+employed$year <- as.numeric(employed$year)
+
+data$year <- as.numeric(data$year)
+data$county_id <- str_pad(data$county_id, 5, pad = "0")
+
+data <- left_join(data, employed, by = c("county_id", "year"))
+
+rm(employed)
+```
+
+## Add the solar labor demand
+
+```{r}
+solar_employment_2015_16 <- read.csv("Data/lightcast data/Create_Solar_Dataset_2015_16.csv")
+colnames(solar_employment_2015_16) <- solar_employment_2015_16[1, ]
+solar_employment_2015_16 <- solar_employment_2015_16[-1, ]
+solar_employment_2017_18 <- read.csv("Data/lightcast data/Create_Solar_Dataset_2017_18.csv")
+colnames(solar_employment_2017_18) <- solar_employment_2017_18[1, ]
+solar_employment_2017_18 <- solar_employment_2017_18[-1, ]
+solar_employment_2019_20 <- read.csv("Data/lightcast data/Create_Solar_Dataset_2019_20.csv")
+colnames(solar_employment_2019_20) <- solar_employment_2019_20[1, ]
+solar_employment_2019_20 <- solar_employment_2019_20[-1, ]
+solar_employment_2021_22 <- read.csv("Data/lightcast data/Create_Solar_Dataset_2021_22.csv")
+colnames(solar_employment_2021_22) <- solar_employment_2021_22[1, ]
+solar_employment_2021_22 <- solar_employment_2021_22[-1, ]
+solar_employment_2023_24 <- read.csv("Data/lightcast data/Create_Solar_Dataset_2023_24.csv")
+colnames(solar_employment_2023_24) <- solar_employment_2023_24[1, ]
+solar_employment_2023_24 <- solar_employment_2023_24[-1, ]
+
+solar_employment <- rbind(solar_employment_2015_16, solar_employment_2017_18)
+solar_employment <- rbind(solar_employment, solar_employment_2019_20)
+solar_employment <- rbind(solar_employment, solar_employment_2021_22)
+solar_employment <- rbind(solar_employment, solar_employment_2023_24)
+
+# How many solar job vacancies each year
+solar_employment_annual <- solar_employment %>% 
+  select(year, total_count) %>%
+  group_by(year) %>%
+  summarise(total_count_solar = sum(as.numeric(total_count), na.rm = TRUE))
+
+solar_employment_skill_type <- solar_employment %>%
+  filter(!is.na(career_type)) %>%
+  group_by(county_id, year, month, career_type) %>%
+  summarise(total_count = sum(as.numeric(total_count)), .groups = 'drop') %>%
+  pivot_wider(names_from = career_type, values_from = total_count, values_fill = 0) %>%
+  rename_with(~ str_replace_all(., " ", "_"), everything()) %>%
+  mutate(
+    county_id = str_pad(as.numeric(sub("^US", "", county_id)), 5, pad = "0"),
+    low_skilled_solar_technologies = `9`, 
+    mid_skilled_solar_technologies = rowSums(select(., `5`, `null`, `6`, `4`), na.rm = TRUE),
+    high_skilled_solar_technologies = rowSums(select(., `1`, `3`, `2`), na.rm = TRUE),
+    solar_technologies_job_vacancies = rowSums(select(., `null`, `1`, `2`, `3`, `4`, `5`, `6`, `7`, `8`, `9`), na.rm = TRUE)
+  )
+
+solar_employment_skill_type$year <- as.numeric(solar_employment_skill_type$year)
+solar_employment_skill_type$month <- as.numeric(solar_employment_skill_type$month)
+
+solar_employment_skill_type_quarterly <- solar_employment_skill_type %>%
+  select(county_id, year, month, solar_technologies_job_vacancies, low_skilled_solar_technologies, mid_skilled_solar_technologies, high_skilled_solar_technologies) %>%
+  mutate(quarter = quarter(month)) %>%  # Convert month to quarter
+  select(-month) %>%  # Remove the month column
+  group_by(county_id, year, quarter) %>%  # Group by county_id, year, and quarter
+  summarise(across(everything(), \(x) sum(x, na.rm = TRUE)), .groups = "drop")
+
+solar_employment_skill_type_quarterly$quarter <- str_pad(solar_employment_skill_type_quarterly$quarter, 2, pad = "Q")
+
+data <- left_join(data, solar_employment_skill_type_quarterly, by = c("county_id", "year", "quarter"))
+
+rm(solar_employment_2017_18, solar_employment_2019_20, solar_employment_2021_22, solar_employment_2023_24, solar_employment_skill_type, solar_employment_skill_type_quarterly, solar_employment_2015_16, solar_employment)
+```
+
+## Add wind labor demand
+
+```{r}
+wind_employment_2015_16 <- read.csv("Data/lightcast data/Create_Wind_Dataset_2015_16.csv")
+colnames(wind_employment_2015_16) <- wind_employment_2015_16[1, ]
+wind_employment_2015_16 <- wind_employment_2015_16[-1, ]
+wind_employment_2017_18 <- read.csv("Data/lightcast data/Create_Wind_Dataset_2017_18.csv")
+colnames(wind_employment_2017_18) <- wind_employment_2017_18[1, ]
+wind_employment_2017_18 <- wind_employment_2017_18[-1, ]
+wind_employment_2019_20 <- read.csv("Data/lightcast data/Create_Wind_Dataset_2019_20.csv")
+colnames(wind_employment_2019_20) <- wind_employment_2019_20[1, ]
+wind_employment_2019_20 <- wind_employment_2019_20[-1, ]
+wind_employment_2021_22 <- read.csv("Data/lightcast data/Create_Wind_Dataset_2021_22.csv")
+colnames(wind_employment_2021_22) <- wind_employment_2021_22[1, ]
+wind_employment_2021_22 <- wind_employment_2021_22[-1, ]
+wind_employment_2023_24 <- read.csv("Data/lightcast data/Create_Wind_Dataset_2023_24.csv")
+colnames(wind_employment_2023_24) <- wind_employment_2023_24[1, ]
+wind_employment_2023_24 <- wind_employment_2023_24[-1, ]
+
+wind_employment <- rbind(wind_employment_2015_16, wind_employment_2017_18)
+wind_employment <- rbind(wind_employment, wind_employment_2019_20)
+wind_employment <- rbind(wind_employment, wind_employment_2021_22)
+wind_employment <- rbind(wind_employment, wind_employment_2023_24)
+
+wind_employment_skill_type <- wind_employment %>%
+  filter(!is.na(career_type)) %>%
+  group_by(county_id, year, month, career_type) %>%
+  summarise(total_count = sum(as.numeric(total_count)), .groups = 'drop') %>%
+  pivot_wider(names_from = career_type, values_from = total_count, values_fill = 0) %>%
+  rename_with(~ str_replace_all(., " ", "_"), everything()) %>%
+  mutate(
+    county_id = str_pad(as.numeric(sub("^US", "", county_id)), 5, pad = "0"),
+    low_skilled_wind_technologies = `9`, 
+    mid_skilled_wind_technologies = rowSums(select(., `4`, `5`, `6`, `7`, `8`), na.rm = TRUE),
+    high_skilled_wind_technologies = rowSums(select(., `1`, `2`, `3`), na.rm = TRUE),
+    wind_technologies_job_vacancies = rowSums(select(., `null`, `1`, `2`, `3`, `4`, `5`, `6`, `7`, `8`, `9`), na.rm = TRUE)
+  )
+
+wind_employment_skill_type$year <- as.numeric(wind_employment_skill_type$year)
+wind_employment_skill_type$month <- as.numeric(wind_employment_skill_type$month)
+
+wind_employment_skill_type_quarterly <- wind_employment_skill_type %>%
+  select(county_id, year, month, wind_technologies_job_vacancies, low_skilled_wind_technologies, mid_skilled_wind_technologies, high_skilled_wind_technologies) %>%
+  mutate(quarter = quarter(month)) %>%  # Convert month to quarter
+  select(-month) %>%  # Remove the month column
+  group_by(county_id, year, quarter) %>%  # Group by county_id, year, and quarter
+  summarise(across(everything(), \(x) sum(x, na.rm = TRUE)), .groups = "drop")
+
+wind_employment_skill_type_quarterly$quarter <- str_pad(wind_employment_skill_type_quarterly$quarter, 2, pad = "Q")
+
+data <- left_join(data, wind_employment_skill_type_quarterly, by = c("county_id", "year", "quarter"))
+rm(wind_employment_2017_18, wind_employment_2019_20, wind_employment_2021_22, wind_employment_2023_24, wind_employment_skill_type, wind_employment_skill_type_quarterly, wind_employment_2015_16, wind_employment)
+```
+
+## Add Y02E10 labor demand
+
+```{r}
+Y02E10_employment_2015_16 <- read.csv("Data/lightcast data/Create_Y02E10_Dataset_2015_16.csv")
+colnames(Y02E10_employment_2015_16) <- Y02E10_employment_2015_16[1, ]
+Y02E10_employment_2015_16 <- Y02E10_employment_2015_16[-1, ]
+Y02E10_employment_2017_18 <- read.csv("Data/lightcast data/Create_Y02E10_Dataset_2017_18.csv")
+colnames(Y02E10_employment_2017_18) <- Y02E10_employment_2017_18[1, ]
+Y02E10_employment_2017_18 <- Y02E10_employment_2017_18[-1, ]
+Y02E10_employment_2019_20 <- read.csv("Data/lightcast data/Create_Y02E10_Dataset_2019_20.csv")
+colnames(Y02E10_employment_2019_20) <- Y02E10_employment_2019_20[1, ]
+Y02E10_employment_2019_20 <- Y02E10_employment_2019_20[-1, ]
+Y02E10_employment_2021_22 <- read.csv("Data/lightcast data/Create_Y02E10_Dataset_2021_22.csv")
+colnames(Y02E10_employment_2021_22) <- Y02E10_employment_2021_22[1, ]
+Y02E10_employment_2021_22 <- Y02E10_employment_2021_22[-1, ]
+Y02E10_employment_2023_24 <- read.csv("Data/lightcast data/Create_Y02E10_Dataset_2023_24.csv")
+colnames(Y02E10_employment_2023_24) <- Y02E10_employment_2023_24[1, ]
+Y02E10_employment_2023_24 <- Y02E10_employment_2023_24[-1, ]
+
+Y02E10_employment <- rbind(Y02E10_employment_2015_16, Y02E10_employment_2017_18)
+Y02E10_employment <- rbind(Y02E10_employment, Y02E10_employment_2019_20)
+Y02E10_employment <- rbind(Y02E10_employment, Y02E10_employment_2021_22)
+Y02E10_employment <- rbind(Y02E10_employment, Y02E10_employment_2023_24)
+
+Y02E10_employment_skill_type <- Y02E10_employment %>%
+  filter(!is.na(career_type)) %>%
+  group_by(county_id, year, month, career_type) %>%
+  summarise(total_count = sum(as.numeric(total_count)), .groups = 'drop') %>%
+  pivot_wider(names_from = career_type, values_from = total_count, values_fill = 0) %>%
+  rename_with(~ str_replace_all(., " ", "_"), everything()) %>%
+  mutate(
+    county_id = str_pad(as.numeric(sub("^US", "", county_id)), 5, pad = "0"),
+    low_skilled_Y02E10_technologies = `9`, 
+    mid_skilled_Y02E10_technologies = rowSums(select(., `4`, `5`, `6`, `7`, `8`), na.rm = TRUE),
+    high_skilled_Y02E10_technologies = rowSums(select(., `1`, `2`, `3`), na.rm = TRUE),
+    Y02E10_technologies_job_vacancies = rowSums(select(., `null`, `1`, `2`, `3`, `4`, `5`, `6`, `7`, `8`, `9`), na.rm = TRUE)
+  )
+
+Y02E10_employment_skill_type$year <- as.numeric(Y02E10_employment_skill_type$year)
+Y02E10_employment_skill_type$month <- as.numeric(Y02E10_employment_skill_type$month)
+
+Y02E10_employment_skill_type_quarterly <- Y02E10_employment_skill_type %>%
+  select(county_id, year, month, Y02E10_technologies_job_vacancies, low_skilled_Y02E10_technologies, mid_skilled_Y02E10_technologies, high_skilled_Y02E10_technologies) %>%
+  mutate(quarter = quarter(month)) %>%  # Convert month to quarter
+  select(-month) %>%  # Remove the month column
+  group_by(county_id, year, quarter) %>%  # Group by county_id, year, and quarter
+  summarise(across(everything(), \(x) sum(x, na.rm = TRUE)), .groups = "drop")
+
+Y02E10_employment_skill_type_quarterly$quarter <- str_pad(Y02E10_employment_skill_type_quarterly$quarter, 2, pad = "Q")
+
+data <- left_join(data, Y02E10_employment_skill_type_quarterly, by = c("county_id", "year", "quarter"))
+rm(Y02E10_employment_2017_18, Y02E10_employment_2019_20, Y02E10_employment_2021_22, Y02E10_employment_2023_24, Y02E10_employment_skill_type, Y02E10_employment_skill_type_quarterly, Y02E10_employment_2015_16, Y02E10_employment)
+```
+
+## Add Grey labor demand
+
+```{r}
+grey_employment_2015_16 <- read.csv("Data/lightcast data/Create_Grey_Dataset_2015_16.csv")
+grey_employment_2017_18 <- read.csv("Data/lightcast data/Create_Grey_Dataset_2017_18.csv")
+grey_employment_2019_20 <- read.csv("Data/lightcast data/Create_Grey_Dataset_2019_20.csv")
+grey_employment_2021_22 <- read.csv("Data/lightcast data/Create_Grey_Dataset_2021_22.csv")
+grey_employment_2023_24 <- read.csv("Data/lightcast data/Create_Grey_Dataset_2023_24.csv")
+
+grey_employment <- rbind(grey_employment_2015_16, grey_employment_2017_18)
+grey_employment <- rbind(grey_employment, grey_employment_2019_20)
+grey_employment <- rbind(grey_employment, grey_employment_2021_22)
+grey_employment <- rbind(grey_employment, grey_employment_2023_24)
+
+grey_employment <- grey_employment %>%
+  group_by(county_id, year, month) %>%
+  summarise(grey_technologies_job_vacancies = sum(as.numeric(total_count)), .groups = 'drop')
+
+grey_employment$year <- as.numeric(grey_employment$year)
+grey_employment$month <- as.numeric(grey_employment$month)
+
+grey_employment_quarterly <- grey_employment %>%
+  select(county_id, year, month, grey_technologies_job_vacancies) %>%
+  mutate(quarter = quarter(month)) %>%  # Convert month to quarter
+  select(-month) %>%  # Remove the month column
+  group_by(county_id, year, quarter) %>%  # Group by county_id, year, and quarter
+  summarise(across(everything(), \(x) sum(x, na.rm = TRUE)), .groups = "drop")
+
+grey_employment_quarterly$quarter <- str_pad(grey_employment_quarterly$quarter, 2, pad = "Q")
+grey_employment_quarterly$county_id <- str_pad(as.numeric(sub("^US", "", grey_employment_quarterly$county_id)), 5, pad = "0")
+
+data <- left_join(data, grey_employment_quarterly, by = c("county_id", "year", "quarter"))
+rm(grey_employment_2017_18, grey_employment_2019_20, grey_employment_2021_22, grey_employment_2023_24, grey_employment, grey_employment_quarterly, grey_employment_2015_16)
+```
+
+## Add the total number of job vacancies
+
+```{r}
+employment <- read.csv("Data/lightcast data/Create_Total_Dataset.csv")
+colnames(employment) <- employment[1, ]
+employment <- employment[-1, ]
+
+# 1. Clean and summarize total employment
+employment_summary <- employment %>%
+  group_by(county_id, year, month) %>%
+  summarise(
+    total_count = sum(as.numeric(total_count), na.rm = TRUE),
+    .groups = 'drop'
+  ) %>%
+  mutate(
+    county_id = str_pad(as.numeric(sub("^US", "", county_id)), 5, pad = "0")
+  )
+
+# How many job vacancies each year
+employment_annual <- employment_summary %>% 
+  select(year, total_count) %>%
+  group_by(year) %>%
+  summarise(total_count = sum(as.numeric(total_count), na.rm = TRUE))
+solar_employment_annual <- left_join(solar_employment_annual, employment_annual, by = "year")
+solar_employment_annual$solar_employment_percentage <- solar_employment_annual$total_count_solar / solar_employment_annual$total_count
+
+# 2. Define skill level categories
+high_skill <- c("Managers", "Professionals", "Technicians and Associate Professionals")
+mid_skill <- c("Clerical Support Workers", "Service and Sales Workers", "Skilled Agricultural, Forestry and Fishery Workers", "Craft and Related Trades Workers", "Plant and Machine Operators, and Assemblers")
+low_skill <- c("Elementary Occupations")
+
+# 3. Create summaries for each skill level
+high_skilled_jobs <- employment %>%
+  filter(career_type %in% high_skill) %>%
+  group_by(county_id, year, month) %>%
+  summarise(high_skilled_jobs = sum(as.numeric(total_count), na.rm = TRUE), .groups = "drop") %>%
+  mutate(county_id = str_pad(as.numeric(sub("^US", "", county_id)), 5, pad = "0"))
+
+mid_skilled_jobs <- employment %>%
+  filter(career_type %in% mid_skill) %>%
+  group_by(county_id, year, month) %>%
+  summarise(mid_skilled_jobs = sum(as.numeric(total_count), na.rm = TRUE), .groups = "drop") %>%
+  mutate(county_id = str_pad(as.numeric(sub("^US", "", county_id)), 5, pad = "0"))
+
+low_skilled_jobs <- employment %>%
+  filter(career_type %in% low_skill) %>%
+  group_by(county_id, year, month) %>%
+  summarise(low_skilled_jobs = sum(as.numeric(total_count), na.rm = TRUE), .groups = "drop") %>%
+  mutate(county_id = str_pad(as.numeric(sub("^US", "", county_id)), 5, pad = "0"))
+
+# 4. Merge them all together
+employment_combined <- employment_summary %>%
+  left_join(high_skilled_jobs, by = c("county_id", "year", "month")) %>%
+  left_join(mid_skilled_jobs, by = c("county_id", "year", "month")) %>%
+  left_join(low_skilled_jobs, by = c("county_id", "year", "month")) %>%
+  replace_na(list(high_skilled_jobs = 0, mid_skilled_jobs = 0, low_skilled_jobs = 0))
+
+employment_combined$year <- as.numeric(employment_combined$year)
+employment_combined$month <- as.numeric(employment_combined$month)
+
+employment <- employment_combined %>%
+  mutate(quarter = quarter(month)) %>%  # Convert month to quarter
+  select(-month) %>%  # Remove the month column
+  group_by(county_id, year, quarter) %>%  # Group by county_id, year, and quarter
+  summarise(across(everything(), \(x) sum(x, na.rm = TRUE)), .groups = "drop")
+
+employment$quarter <- str_pad(employment$quarter, 2, pad = "Q")
+
+data <- left_join(data, employment, by = c("county_id", "year", "quarter"))
+
+rm(employment, employment_combined, low_skilled_jobs, mid_skilled_jobs, high_skilled_jobs, employment_summary, low_skill, mid_skill, high_skill)
+```
+
+## Create neighboring spillover Bandwidths 2023-24 (cohort 1)
+
+```{r}
+counties <- sf::st_read("Data/raw data/tlgdb_2020_a_us_substategeo.gdb", layer = "County")
+counties <- counties %>%
+  select("GEOID") %>%
+  rename("county_id" = "GEOID")
+data <- left_join(data, counties, by = "county_id")
+
+data <- st_as_sf(data)
+data_temp <- data %>% filter(year == 2022 & quarter == "Q4") %>%
+  select(county_id, ec_ind_official_cohort_1_percentage)
+energy_communities <- data_temp[data_temp$ec_ind_official_cohort_1_percentage > 0, ]
+non_energy_communities <- data_temp[data_temp$ec_ind_official_cohort_1_percentage == 0, ]
+
+neighboring_counties <- st_touches(non_energy_communities, energy_communities)
+neighboring_indices <- which(sapply(neighboring_counties, length) > 0)
+non_energy_communities$neigboring_counties <- ifelse(row_number(non_energy_communities) %in% neighboring_indices, 1, 0)
+neighboring_counties <- unique(non_energy_communities[non_energy_communities$neigboring_counties == 1, ]$county_id)
+data_temp$neigboring_counties <- ifelse(data_temp$county_id %in% neighboring_counties, 1, 0)
+
+previous_neighbors <- non_energy_communities[non_energy_communities$neigboring_counties == 1, ]
+non_energy_communities <- non_energy_communities[non_energy_communities$neigboring_counties == 0, ]
+neighboring_counties <- st_touches(non_energy_communities, previous_neighbors)
+neighboring_indices <- which(sapply(neighboring_counties, length) > 0)
+non_energy_communities$neigboring_counties <- ifelse(row_number(non_energy_communities) %in% neighboring_indices, 1, 0)
+neighboring_counties <- unique(non_energy_communities[non_energy_communities$neigboring_counties == 1, ]$county_id)
+data_temp$second_neigboring_counties <- ifelse(data_temp$county_id %in% neighboring_counties, 1, 0)
+
+columns_of_interest <- c("neigboring_counties", "second_neigboring_counties")
+data_temp <- data_temp %>%
+  st_drop_geometry() 
+
+data_temp$spillover_bandwidth <- apply(data_temp[columns_of_interest], 1, function(row) {
+  colnames(data_temp[columns_of_interest])[which(row == 1)]
+})
+
+data_temp$spillover_bandwidth <- ifelse(data_temp$spillover_bandwidth %in% c("second_neigboring_counties", "neigboring_counties"), "neigboring_counties", "non_neigboring_counties")
+data_temp$spillover_bandwidth <- ifelse(data_temp$ec_ind_official_cohort_1_percentage > 0, "energy_community", data_temp$spillover_bandwidth)
+data_temp <- data_temp %>%
+  select(-c("ec_ind_official_cohort_1_percentage"))
+
+data_temp <- unique(data_temp)
+
+data <- left_join(data, data_temp, by = "county_id")
+
+data <- data %>%
+  rename("spillover_bandwidth_neighbors_cohort_1" = "spillover_bandwidth")
+```
+
+## Create neighboring spillover Bandwidths 2023-24 (cohort 2)
+
+```{r}
+data <- st_as_sf(data)
+data_temp <- data %>% filter(year == 2022 & quarter == "Q4") %>%
+  select(county_id, ec_ind_official_cohort_2_percentage)
+energy_communities <- data_temp[data_temp$ec_ind_official_cohort_2_percentage > 0, ]
+non_energy_communities <- data_temp[data_temp$ec_ind_official_cohort_2_percentage == 0, ]
+
+neighboring_counties <- st_touches(non_energy_communities, energy_communities)
+neighboring_indices <- which(sapply(neighboring_counties, length) > 0)
+non_energy_communities$neigboring_counties <- ifelse(row_number(non_energy_communities) %in% neighboring_indices, 1, 0)
+neighboring_counties <- unique(non_energy_communities[non_energy_communities$neigboring_counties == 1, ]$county_id)
+data_temp$neigboring_counties <- ifelse(data_temp$county_id %in% neighboring_counties, 1, 0)
+
+previous_neighbors <- non_energy_communities[non_energy_communities$neigboring_counties == 1, ]
+non_energy_communities <- non_energy_communities[non_energy_communities$neigboring_counties == 0, ]
+neighboring_counties <- st_touches(non_energy_communities, previous_neighbors)
+neighboring_indices <- which(sapply(neighboring_counties, length) > 0)
+non_energy_communities$neigboring_counties <- ifelse(row_number(non_energy_communities) %in% neighboring_indices, 1, 0)
+neighboring_counties <- unique(non_energy_communities[non_energy_communities$neigboring_counties == 1, ]$county_id)
+data_temp$second_neigboring_counties <- ifelse(data_temp$county_id %in% neighboring_counties, 1, 0)
+
+columns_of_interest <- c("neigboring_counties", "second_neigboring_counties")
+data_temp <- data_temp %>%
+  st_drop_geometry() 
+
+data_temp$spillover_bandwidth <- apply(data_temp[columns_of_interest], 1, function(row) {
+  colnames(data_temp[columns_of_interest])[which(row == 1)]
+})
+
+data_temp$spillover_bandwidth <- ifelse(data_temp$spillover_bandwidth %in% c("second_neigboring_counties", "neigboring_counties"), "neigboring_counties", "non_neigboring_counties")
+data_temp$spillover_bandwidth <- ifelse(data_temp$ec_ind_official_cohort_2_percentage > 0, "energy_community", data_temp$spillover_bandwidth)
+data_temp <- data_temp %>%
+  select(-c("ec_ind_official_cohort_2_percentage"))
+
+data_temp <- unique(data_temp)
+
+data <- left_join(data, data_temp, by = "county_id")
+
+data <- data %>%
+  rename("spillover_bandwidth_neighbors_cohort_2" = "spillover_bandwidth")
+```
+
+## Create neighboring spillover Bandwidths 2024-25 (cohort 3)
+
+```{r}
+data <- st_as_sf(data)
+data_temp <- data %>% filter(year == 2022 & quarter == "Q4") %>%
+  select(county_id, ec_ind_official_cohort_3_percentage)
+energy_communities <- data_temp[data_temp$ec_ind_official_cohort_3_percentage > 0, ]
+non_energy_communities <- data_temp[data_temp$ec_ind_official_cohort_3_percentage == 0, ]
+
+neighboring_counties <- st_touches(non_energy_communities, energy_communities)
+neighboring_indices <- which(sapply(neighboring_counties, length) > 0)
+non_energy_communities$neigboring_counties <- ifelse(row_number(non_energy_communities) %in% neighboring_indices, 1, 0)
+neighboring_counties <- unique(non_energy_communities[non_energy_communities$neigboring_counties == 1, ]$county_id)
+data_temp$neigboring_counties <- ifelse(data_temp$county_id %in% neighboring_counties, 1, 0)
+
+previous_neighbors <- non_energy_communities[non_energy_communities$neigboring_counties == 1, ]
+non_energy_communities <- non_energy_communities[non_energy_communities$neigboring_counties == 0, ]
+neighboring_counties <- st_touches(non_energy_communities, previous_neighbors)
+neighboring_indices <- which(sapply(neighboring_counties, length) > 0)
+non_energy_communities$neigboring_counties <- ifelse(row_number(non_energy_communities) %in% neighboring_indices, 1, 0)
+neighboring_counties <- unique(non_energy_communities[non_energy_communities$neigboring_counties == 1, ]$county_id)
+data_temp$second_neigboring_counties <- ifelse(data_temp$county_id %in% neighboring_counties, 1, 0)
+
+columns_of_interest <- c("neigboring_counties", "second_neigboring_counties")
+data_temp <- data_temp %>%
+  st_drop_geometry() 
+
+data_temp$spillover_bandwidth <- apply(data_temp[columns_of_interest], 1, function(row) {
+  colnames(data_temp[columns_of_interest])[which(row == 1)]
+})
+
+data_temp$spillover_bandwidth <- ifelse(data_temp$spillover_bandwidth %in% c("second_neigboring_counties", "neigboring_counties"), "neigboring_counties", "non_neigboring_counties")
+data_temp$spillover_bandwidth <- ifelse(data_temp$ec_ind_official_cohort_3_percentage > 0, "energy_community", data_temp$spillover_bandwidth)
+data_temp <- data_temp %>%
+  select(-c("ec_ind_official_cohort_3_percentage"))
+
+data_temp <- unique(data_temp)
+
+data <- left_join(data, data_temp, by = "county_id")
+
+data <- data %>%
+  rename("spillover_bandwidth_neighbors_cohort_3" = "spillover_bandwidth")
+```
+
+## Create stata files
+
+```{r}
+# Create additional variables
+data$year_quarter <- paste0(data$year, "-", data$quarter)
+# Create treatment indicator
+data$treatment <- ifelse(data$year_quarter %in% c("2023-Q1", "2023-Q2", "2023-Q3", "2023-Q4", "2024-Q1") & data$ec_ind_official_cohort_1_percentage > 0, 1, 0)
+data$treatment <- ifelse(data$year_quarter %in% c("2024-Q2") & data$ec_ind_official_cohort_2_percentage > 0, 1, data$treatment)
+data$treatment <- ifelse(data$year_quarter %in% c("2024-Q3", "2024-Q4") & data$ec_ind_official_cohort_3_percentage > 0, 1, data$treatment)
+
+# Create binary EC variables
+data$ec_ind_official_cohort_1 <- ifelse(data$ec_ind_official_cohort_1_percentage > 0, 1, 0)
+data$ec_ind_official_cohort_2 <- ifelse(data$ec_ind_official_cohort_2_percentage > 0, 1, 0)
+data$ec_ind_official_cohort_3 <- ifelse(data$ec_ind_official_cohort_3_percentage > 0, 1, 0)
+
+# Create period variable
+data$year <- as.numeric(data$year)
+base_year <- min(data$year)  # Using the minimum year in the dataset
+data$quarter_num <- as.numeric(substr(data$quarter, 2, 2))
+data$period <- (data$year - base_year) * 4 + data$quarter_num
+
+# Spillover dataset
+data$spillover_treatment <- ifelse(data$spillover_bandwidth_neighbors_cohort_1 == "neigboring_counties" & data$year_quarter %in% c("2023-Q1", "2023-Q2", "2023-Q3", "2023-Q4", "2024-Q1"), 1, 0)
+data$spillover_treatment <- ifelse(data$spillover_bandwidth_neighbors_cohort_2 == "neigboring_counties" & data$year_quarter %in% c("2024-Q2"), 1, data$spillover_treatment)
+data$spillover_treatment <- ifelse(data$spillover_bandwidth_neighbors_cohort_3 == "neigboring_counties" & data$year_quarter %in% c("2024-Q3", "2024-Q4"), 1, data$spillover_treatment)
+
+data <- data %>%
+  mutate(across(c("solar_technologies_job_vacancies", "total_count", "Y02E10_technologies_job_vacancies", "wind_technologies_job_vacancies", "grey_technologies_job_vacancies"), ~replace_na(., 0)))
+data$solar_technologies_job_vacancies_percentage <- data$solar_technologies_job_vacancies / data$total_count
+data$wind_technologies_job_vacancies_percentage <- data$wind_technologies_job_vacancies / data$total_count
+data$Y02E10_technologies_job_vacancies_percentage <- data$Y02E10_technologies_job_vacancies / data$total_count
+data$grey_technologies_job_vacancies_percentage <- data$grey_technologies_job_vacancies / data$total_count
+
+# Limit the size of the datasets
+data_stata <- data %>%
+  st_drop_geometry() %>%
+  select(county_id, period, year, quarter, treatment, ec_ind_official_cohort_1, ec_ind_official_cohort_2, ec_ind_official_cohort_3, Y02E10_technologies_job_vacancies_percentage, solar_technologies_job_vacancies_percentage, wind_technologies_job_vacancies_percentage, grey_technologies_job_vacancies_percentage, total_count, spillover_treatment) %>%
+  arrange(county_id, period)
+
+write.csv(data_stata, "Data/constructed data/final_labor_demand_dataset_stata.csv")
+```

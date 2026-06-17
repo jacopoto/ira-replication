@@ -1,0 +1,485 @@
+---
+title: "01_build_descriptives_data"
+author: "Joep Keuzenkamp"
+date: "2025-01-10"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Geographic regions
+
+Here, we lay the groundwork by providing all the geographic regions in the dataset.
+
+```{r}
+# Add the census tracts
+census_tracts <- sf::st_read("Data/raw data/tlgdb_2020_a_us_substategeo.gdb", layer = "Census_Tract")
+census_tracts <- census_tracts %>%
+  select("GEOID", "NAMELSAD", "SHAPE") %>%
+  rename("census_tract_id" = "GEOID",
+         "census_tract_name" = "NAMELSAD")
+census_tracts$county_id <- str_sub(census_tracts$census_tract_id, 1, 5)
+census_tracts$state_id <- str_sub(census_tracts$census_tract_id, 1, 2)
+counties <- sf::st_read("Data/raw data/tlgdb_2020_a_us_substategeo.gdb", layer = "County")
+counties <- counties %>%
+  select("GEOID", "NAMELSAD") %>%
+  rename("county_id" = "GEOID",
+         "county_name" = "NAMELSAD") %>%
+  st_drop_geometry()
+census_tracts <- left_join(census_tracts, counties, by = "county_id")
+
+rm(counties)
+```
+
+## Add the 2023 (cohort 1) energy communities: IRS notice 2023-29
+
+```{r}
+coal_closure <- read.csv("Data/raw data/IRA_Coal_Closure_Energy_Comm_2023v2/Coal_Closure_Energy_Communities_2023v2.csv")
+coal_closure$geoid_tract_2020 <- str_pad(coal_closure$geoid_tract_2020, 11, pad = "0")
+EC_employ <- read.csv("Data/raw data/MSA_NMSA_FEE_EC_Status_2023v2/MSA_NMSA_FFE_EC_2023v2.csv")
+EC_employ$geoid_cty_2020 <- str_pad(EC_employ$geoid_cty_2020, 5, pad = "0")
+coal_closure_mine <- coal_closure %>%
+  filter(Tract_Status %in% c("is an energy community due to a coal mine closure"))
+coal_closure_mine <- unique(coal_closure_mine$geoid_tract_2020)
+coal_closure_generator <- coal_closure %>%
+  filter(Generator_Closure == "Yes")
+coal_closure_generator <- unique(coal_closure_generator$geoid_tract_2020)
+coal_closure_adjacent <- coal_closure %>%
+  filter(Adjacent_to_Closure == "Yes")
+coal_closure_adjacent <- unique(coal_closure_adjacent$geoid_tract_2020)
+EC_employ <- unique(EC_employ[EC_employ$EC_qual_status == "Yes", ]$geoid_cty_2020)
+
+data <- census_tracts
+
+data$coal_mine_closure_official_cohort_1 <- ifelse(data$census_tract_id %in% coal_closure_mine, 1, 0)
+data$generator_closure_official_cohort_1 <- ifelse(data$census_tract_id %in% coal_closure_generator, 1, 0)
+data$adjacent_closure_official_cohort_1 <- ifelse(data$census_tract_id %in% coal_closure_adjacent, 1, 0)
+data$unemployment_official_msa_cohort_1 <- ifelse(data$county_id %in% EC_employ, 1, 0)
+
+rm(coal_closure, EC_employ, coal_closure_adjacent, coal_closure_generator, coal_closure_mine)
+```
+
+## Add the 2023 (cohort 2) energy communities: IRS notice 2024-30
+
+```{r}
+coal_closure <- read.csv("Data/raw data/IRA_Coal_Closure_Energy_Comm_2023v2/Coal_Closure_Energy_Communities_2023v2.csv")
+coal_closure$geoid_tract_2020 <- str_pad(coal_closure$geoid_tract_2020, 11, pad = "0")
+EC_employ <- read.csv("Data/raw data/MSA_NMSA_EC_FFE_Status_v2023_3/MSA_NonMSA_EnergyCommunities_FossilFuelEmp_2023v3.csv")
+EC_employ$geoid_county_2020 <- str_pad(EC_employ$geoid_county_2020, 5, pad = "0")
+coal_closure_mine <- coal_closure %>%
+  filter(Tract_Status %in% c("is an energy community due to a coal mine closure"))
+coal_closure_mine <- unique(coal_closure_mine$geoid_tract_2020)
+coal_closure_generator <- coal_closure %>%
+  filter(Generator_Closure == "Yes")
+coal_closure_generator <- unique(coal_closure_generator$geoid_tract_2020)
+coal_closure_adjacent <- coal_closure %>%
+  filter(Adjacent_to_Closure == "Yes")
+coal_closure_adjacent <- unique(coal_closure_adjacent$geoid_tract_2020)
+EC_employ <- unique(EC_employ[EC_employ$ec_qual_status == "Yes", ]$geoid_county_2020)
+
+data$coal_mine_closure_official_cohort_2 <- ifelse(data$census_tract_id %in% coal_closure_mine, 1, 0)
+data$generator_closure_official_cohort_2 <- ifelse(data$census_tract_id %in% coal_closure_generator, 1, 0)
+data$adjacent_closure_official_cohort_2 <- ifelse(data$census_tract_id %in% coal_closure_adjacent, 1, 0)
+data$unemployment_official_msa_cohort_2 <- ifelse(data$county_id %in% EC_employ, 1, 0)
+
+rm(coal_closure, EC_employ, coal_closure_adjacent, coal_closure_generator, coal_closure_mine)
+```
+
+## Add the 2024 (cohort 3) energy communities: IRS notice 2024-48
+
+```{r}
+coal_closure <- read.csv("Data/raw data/Coal_Closures_EnergyComm_v2024_1/IRA_EnergyComm_CTracts_CoalClosures_v2024_1.csv")
+coal_closure$geoid_tract_2020 <- str_pad(coal_closure$geoid_tract_2020, 11, pad = "0")
+EC_employ <- read.csv("Data/raw data/MSA_NMSA_EC_FFE_v2024_1/MSA_NonMSA_EnergyCommunities_FossilFuelEmp_v2024_1.csv")
+EC_employ$geoid_county_2020 <- str_pad(EC_employ$geoid_county_2020, 5, pad = "0")
+coal_closure_mine <- coal_closure %>%
+  filter(Mine_Closure == "Yes")
+coal_closure_mine <- unique(coal_closure_mine$geoid_tract_2020)
+coal_closure_generator <- coal_closure %>%
+  filter(Generator_Closure == "Yes")
+coal_closure_generator <- unique(coal_closure_generator$geoid_tract_2020)
+coal_closure_adjacent <- coal_closure %>%
+  filter(Adjacent_to_Closure == "Yes")
+coal_closure_adjacent <- unique(coal_closure_adjacent$geoid_tract_2020)
+EC_employ <- unique(EC_employ[EC_employ$ec_qual_status == "Yes", ]$geoid_county_2020)
+
+data$coal_mine_closure_official_cohort_3 <- ifelse(data$census_tract_id %in% coal_closure_mine, 1, 0)
+data$generator_closure_official_cohort_3 <- ifelse(data$census_tract_id %in% coal_closure_generator, 1, 0)
+data$adjacent_closure_official_cohort_3 <- ifelse(data$census_tract_id %in% coal_closure_adjacent, 1, 0)
+data$unemployment_official_msa_cohort_3 <- ifelse(data$county_id %in% EC_employ, 1, 0)
+
+rm(coal_closure, EC_employ, coal_closure_adjacent, coal_closure_generator, coal_closure_mine)
+```
+
+## Add binary indicator for energy communities
+
+```{r}
+data <- data %>%
+  mutate(ec_ind_official_cohort_1 = ifelse((coal_mine_closure_official_cohort_1 == 1 | 
+                                   generator_closure_official_cohort_1 == 1 | 
+                                   adjacent_closure_official_cohort_1 == 1) |
+                                   unemployment_official_msa_cohort_1 == 1, 
+                                   1, 0))
+
+data <- data %>%
+  mutate(ec_ind_official_cohort_2 = ifelse((coal_mine_closure_official_cohort_2 == 1 | 
+                                   generator_closure_official_cohort_2 == 1 | 
+                                   adjacent_closure_official_cohort_2 == 1) |
+                                   unemployment_official_msa_cohort_2 == 1, 
+                                   1, 0))
+
+data <- data %>%
+  mutate(ec_ind_official_cohort_3 = ifelse((coal_mine_closure_official_cohort_3 == 1 | 
+                                   generator_closure_official_cohort_3 == 1 | 
+                                   adjacent_closure_official_cohort_3 == 1) |
+                                   unemployment_official_msa_cohort_3 == 1, 
+                                   1, 0))
+```
+
+## Create a map of the energy Communities 2023-24 (cohort 1)
+
+```{r}
+# Remove Alaska and Hawaii from map data
+us_map <- map_data("state") %>%
+  filter(!region %in% c("alaska", "hawaii"))
+
+data$state_id <- as.numeric(data$state_id)
+
+# Filter your data
+data_temp <- data %>%
+  filter(!(state_id %in% c(2, 15, 72, 78))) %>%  # 2=AK, 15=HI, 72=PR, 78 = St. Croix Island
+  filter(ec_ind_official_cohort_1 == 1)
+
+# Create Legend variable
+data_temp$Legend <- ifelse(data_temp$coal_mine_closure_official_cohort_1 == 1 | 
+                           data_temp$generator_closure_official_cohort_1 == 1 | 
+                           data_temp$adjacent_closure_official_cohort_1 == 1, 
+                           "Coal Mine Requirement", NA)
+data_temp$Legend <- ifelse(data_temp$unemployment_official_msa_cohort_1 == 1, 
+                           "Unemployment Requirement", data_temp$Legend)
+data_temp$Legend <- ifelse(((data_temp$coal_mine_closure_official_cohort_1 == 1 | 
+                             data_temp$generator_closure_official_cohort_1 == 1 | 
+                             data_temp$adjacent_closure_official_cohort_1 == 1) & 
+                            (data_temp$unemployment_official_msa_cohort_1 == 1)), 
+                           "Both Requirements", data_temp$Legend)
+
+# Plot
+ggplot() +
+  geom_polygon(data = us_map, aes(x = long, y = lat, group = group), 
+               fill = "gray", color = "black") +
+  geom_sf(data = data_temp, aes(fill = Legend, color = Legend), size = 3) +
+  scale_alpha_identity() +
+  theme_minimal() +
+  theme(panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        axis.line = element_blank(),
+        axis.title = element_blank(),
+        axis.text = element_blank(),
+        axis.ticks = element_blank())
+
+
+ggsave("Output/energy_communities_map_cohort_1.png")
+```
+
+## Create a map of the energy Communities 2023-24 (cohort 2)
+
+```{r}
+# Filter your data
+data_temp <- data %>%
+  filter(!(state_id %in% c(2, 15, 72, 78))) %>%  # 2=AK, 15=HI, 72=PR, 78 = St. Croix Island
+  filter(ec_ind_official_cohort_2 == 1)
+
+# Create Legend variable
+data_temp$Legend <- ifelse(data_temp$coal_mine_closure_official_cohort_2 == 1 | 
+                           data_temp$generator_closure_official_cohort_2 == 1 | 
+                           data_temp$adjacent_closure_official_cohort_2 == 1, 
+                           "Coal Mine Requirement", NA)
+data_temp$Legend <- ifelse(data_temp$unemployment_official_msa_cohort_2 == 1, 
+                           "Unemployment Requirement", data_temp$Legend)
+data_temp$Legend <- ifelse(((data_temp$coal_mine_closure_official_cohort_2 == 1 | 
+                             data_temp$generator_closure_official_cohort_2 == 1 | 
+                             data_temp$adjacent_closure_official_cohort_2 == 1) & 
+                            (data_temp$unemployment_official_msa_cohort_2 == 1)), 
+                           "Both Requirements", data_temp$Legend)
+
+# Plot
+ggplot() +
+  geom_polygon(data = us_map, aes(x = long, y = lat, group = group), 
+               fill = "gray", color = "black") +
+  geom_sf(data = data_temp, aes(fill = Legend, color = Legend), size = 3) +
+  scale_alpha_identity() +
+  theme_minimal() +
+  theme(panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        axis.line = element_blank(),
+        axis.title = element_blank(),
+        axis.text = element_blank(),
+        axis.ticks = element_blank())
+
+
+ggsave("Output/energy_communities_map_cohort_2.png")
+```
+
+## Create a map of the energy Communities 2024-25 (cohort 3)
+
+```{r}
+# Filter your data
+data_temp <- data %>%
+  filter(!(state_id %in% c(2, 15, 72, 78))) %>%  # 2=AK, 15=HI, 72=PR, 78 = St. Croix Island
+  filter(ec_ind_official_cohort_3 == 1)
+
+# Create Legend variable
+data_temp$Legend <- ifelse(data_temp$coal_mine_closure_official_cohort_3 == 1 | 
+                           data_temp$generator_closure_official_cohort_3 == 1 | 
+                           data_temp$adjacent_closure_official_cohort_3 == 1, 
+                           "Coal Mine Requirement", NA)
+data_temp$Legend <- ifelse(data_temp$unemployment_official_msa_cohort_3 == 1, 
+                           "Unemployment Requirement", data_temp$Legend)
+data_temp$Legend <- ifelse(((data_temp$coal_mine_closure_official_cohort_3 == 1 | 
+                             data_temp$generator_closure_official_cohort_3 == 1 | 
+                             data_temp$adjacent_closure_official_cohort_3 == 1) & 
+                            (data_temp$unemployment_official_msa_cohort_3 == 1)), 
+                           "Both Requirements", data_temp$Legend)
+
+# Plot
+ggplot() +
+  geom_polygon(data = us_map, aes(x = long, y = lat, group = group), 
+               fill = "gray", color = "black") +
+  geom_sf(data = data_temp, aes(fill = Legend, color = Legend), size = 3) +
+  scale_alpha_identity() +
+  theme_minimal() +
+  theme(panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        axis.line = element_blank(),
+        axis.title = element_blank(),
+        axis.text = element_blank(),
+        axis.ticks = element_blank())
+
+
+ggsave("Output/energy_communities_map_cohort_3.png")
+
+rm(us_map)
+```
+
+## For the descriptives we will add many variables
+
+### Surface Area
+
+```{r}
+## Land Surface Area
+data <- st_as_sf(data)
+data$area <- st_area(data)/1000
+```
+
+### Demographic variables
+
+```{r}
+population <- read.csv("Data/raw data/DECENNIALDP2020.DP1_2024-04-08T040530/DECENNIALDP2020.DP1-Data.csv")
+population <- population[-1, ]
+population <- subset(population, select = c("GEO_ID", "NAME", "DP1_0001C"))
+population <- population %>%
+  rename("total_population_2020" = "DP1_0001C")
+population$census_tract_id <- sub(".*US", "", population$GEO_ID)
+population <- population %>%
+  select(-c("GEO_ID", "NAME"))
+
+population$total_population_2020 <- as.numeric(population$total_population_2020)
+
+# Merge the demographics with the complete dataset
+data <- left_join(data, population, by = "census_tract_id")
+
+rm(population)
+```
+
+### Energy Generating Potential
+
+```{r}
+# Read in and prepare the energy generating potential dataset
+energy <- read.csv("Data/raw data/66600e58b2ec97558133d632_results.csv")
+fips <- read_excel("Data/raw data/usa_adm2_geoquery_fips.xlsx")
+energy <- left_join(energy, fips, by = "shapeID")
+energy <- energy %>%
+  select("globalsolaratlas_pvout.none.mean", "globalsolaratlas_pvout.none.max", "globalsolaratlas_pvout.none.min", "globalwindatlas_windspeed.none.mean", "globalwindatlas_windspeed.none.max", "globalwindatlas_windspeed.none.min", "globalwindatlas_powerdensity.none.mean", "globalwindatlas_powerdensity.none.max", "globalwindatlas_powerdensity.none.min", "GEOID") %>%
+  rename("mean_solar_potential_county_2019" = "globalsolaratlas_pvout.none.mean", "max_solar_potential_county_2019" = "globalsolaratlas_pvout.none.max", "min_solar_potential_county_2019" = "globalsolaratlas_pvout.none.min", "mean_wind_potential_county_2019" = "globalwindatlas_windspeed.none.mean", "max_wind_potential_county_2019" = "globalwindatlas_windspeed.none.max", "min_wind_potential_county_2019" = "globalwindatlas_windspeed.none.min", "mean_wind_density_potential_county_2019" = "globalwindatlas_powerdensity.none.mean", "max_wind_density_potential_county_2019" = "globalwindatlas_powerdensity.none.max", "min_wind_density_potential_county_2019" = "globalwindatlas_powerdensity.none.min", "county_id" = "GEOID")
+energy$county_id <- str_pad(energy$county_id, 5, pad = "0")
+
+data <- left_join(data, energy, by = "county_id")
+```
+
+### Educational attainment
+
+```{r}
+education <- read.csv("Data/raw data/Education2023.csv")
+education <- education %>%
+  filter(Attribute %in% c("Percent of adults who are not high school graduates, 2019-23", "Percent of adults who are high school graduates (or equivalent), 2019-23", "Percent of adults completing some college or associate degree, 2019-23", "Percent of adults with a bachelor's degree or higher, 2019-23", "2013 Urban Influence Code", "2023 Rural-urban Continuum Code" )) %>%
+  pivot_wider(id_cols = FIPS.Code, names_from = Attribute, values_from = Value) %>%
+  rename("county_id" = "FIPS.Code", "rural_urban_continuum_code_2023" = "2023 Rural-urban Continuum Code", "urban_influence_code_2013" = "2013 Urban Influence Code", "perecentage_no_high_school_county_19_23" = "Percent of adults who are not high school graduates, 2019-23", "percentage_high_school_county_19_23" = "Percent of adults who are high school graduates (or equivalent), 2019-23", "percentage_college_county_19_23" = "Percent of adults completing some college or associate degree, 2019-23", "percentage_bachelor_county_19_23" = "Percent of adults with a bachelor's degree or higher, 2019-23")
+education$county_id <- str_pad(education$county_id, 5, pad = "0")
+
+# Merge the datasets
+data <- left_join(data, education, by = "county_id")
+
+rm(education)
+```
+
+### Poverty
+
+```{r}
+poverty <- read.csv("Data/raw data/Poverty2023.csv")
+poverty <- poverty %>%
+  filter(Attribute == "PCTPOVALL_2023") %>%
+  pivot_wider(id_cols = FIPS_Code, names_from = Attribute, values_from = Value) %>%
+  rename("county_id" = "FIPS_Code", "poverty_rate_2023_county" = "PCTPOVALL_2023")
+poverty$county_id <- str_pad(poverty$county_id, 5, pad = "0")
+
+# Merge the datasets
+data <- left_join(data, poverty, by = "county_id")
+
+rm(poverty)
+```
+
+### Industry GDP
+
+```{r}
+gdp <- read.csv("Data/raw data/CAGDP9__ALL_AREAS_2017_2022.csv")
+gdp <- gdp %>%
+  rename("2022" = "X2022", "Industry" = "Description") %>%
+  select("GeoFIPS", "2022", "Industry") %>%
+  pivot_longer(cols = starts_with("20"), names_to = "Year", values_to = "Value")
+gdp$Industry <- str_trim(gdp$Industry)
+gdp <- gdp %>%
+  filter(Industry %in% c("All industry total", "Government and government enterprises", "Natural resources and mining", "Trade", "Transportation and utilities", "Manufacturing and information")) %>%
+  pivot_wider(names_from = Industry, values_from = Value)
+gdp <- gdp %>%
+  rename("county_id" = "GeoFIPS", "year" = "Year", "trade_gdp_county_2022" = "Trade", "transportation_utilities_gdp_county_2022" = "Transportation and utilities", "government_gdp_county_2022" = "Government and government enterprises", "all_industry_total_gdp_county_2022" = "All industry total", "manufacturing_information_gdp_county_2022" = "Manufacturing and information", "natural_resources_mining_gdp_county_2022" = "Natural resources and mining")
+gdp$county_id <- stri_trim(gdp$county_id)
+gdp$trade_gdp_county_2022 <- as.numeric(stri_trim(gdp$trade_gdp_county_2022))
+gdp$transportation_utilities_gdp_county_2022 <- as.numeric(stri_trim(gdp$transportation_utilities_gdp_county_2022))
+gdp$all_industry_total_gdp_county_2022 <- as.numeric(stri_trim(gdp$all_industry_total_gdp_county_2022))
+gdp$government_gdp_county_2022 <- as.numeric(stri_trim(gdp$government_gdp_county_2022))
+gdp$manufacturing_information_gdp_county_2022 <- as.numeric(stri_trim(gdp$manufacturing_information_gdp_county_2022))
+gdp$natural_resources_mining_gdp_county_2022 <- as.numeric(stri_trim(gdp$natural_resources_mining_gdp_county_2022))
+
+# Add to the complete dataset
+data <- left_join(data, gdp, by = c("county_id"))
+
+rm(gdp)
+```
+
+### Unemployment
+
+```{r}
+unemployment <- read.csv("Data/raw data/Unemployment2023.csv")
+unemployment <- unemployment %>%
+  filter(Attribute == "Unemployment_rate_2022") %>%
+  pivot_wider(id_cols = FIPS_Code, names_from = Attribute, values_from = Value) %>%
+  rename("county_id" = "FIPS_Code", "unemployment_rate_2022" = "Unemployment_rate_2022")
+unemployment$county_id <- str_pad(unemployment$county_id, 5, pad = "0")
+
+# Merge unemployment to the complete dataset
+data <- left_join(data, unemployment, by = c("county_id"))
+
+rm(unemployment)
+```
+
+## Include generators of 2022, Q2
+
+```{r}
+# Add the census tracts
+census_tracts <- sf::st_read("Data/raw data/tlgdb_2020_a_us_substategeo.gdb", layer = "Census_Tract")
+
+# Read generator data
+generators <- read_excel("Data/raw data/eia_monthly_data/april_generator2022.xlsx") %>%
+  setNames(.[2, ]) %>%        # Set first row as column names
+  slice(-1) %>% 
+  slice(-1) %>% 
+  filter(!is.na(Latitude), !is.na(Longitude)) %>%  # Filter rows with valid Latitude and Longitude
+  st_as_sf(coords = c("Longitude", "Latitude"), crs = 4326) %>%
+  st_transform(crs = st_crs(census_tracts)) %>%
+  filter(Sector == "Electric Utility") %>%
+  filter(Status == "(OP) Operating")
+
+# Find generators within census tracts and assign corresponding row numbers
+generators$census_tract_row_number <- st_within(generators, census_tracts) %>% as.numeric()
+
+# Process generator data: summarize capacities by technology and reshape
+names(generators) <- gsub("^\\s+|\\s+$", "", names(generators))
+generators <- generators %>%
+  st_drop_geometry() %>%
+  select(nameplate_capacity = `Net Summer Capacity (MW)`, Technology, census_tract_row_number) %>%
+  mutate(nameplate_capacity = as.numeric(nameplate_capacity)) %>%
+  group_by(census_tract_row_number, Technology) %>%
+  summarize(nameplate_capacity = sum(nameplate_capacity, na.rm = TRUE), .groups = "drop") %>%
+  pivot_wider(names_from = Technology, values_from = nameplate_capacity, values_fill = 0) %>%
+  mutate(
+    total_MW_2022_Q2 = rowSums(select(., -c(census_tract_row_number)), na.rm = TRUE),
+    hydro_MW_2022_Q2 = `Conventional Hydroelectric` + `Hydroelectric Pumped Storage`,
+    natural_gas_MW_2022_Q2 = `Natural Gas Fired Combined Cycle` + `Natural Gas Steam Turbine` +
+                     `Natural Gas Fired Combustion Turbine` + `Natural Gas Internal Combustion Engine` + `Natural Gas with Compressed Air Storage`,
+    coal_MW_2022_Q2 = `Conventional Steam Coal` + `Coal Integrated Gasification Combined Cycle`,
+    other_fossil_MW_2022_Q2 = `Petroleum Liquids` + `Landfill Gas` + `Petroleum Coke`,
+    solar_MW_2022_Q2 = `Solar Photovoltaic`,
+    onshore_wind_MW_2022_Q2 = `Onshore Wind Turbine`,
+    nuclear_MW_2022_Q2 = Nuclear
+  ) %>%
+  select(census_tract_row_number, total_MW_2022_Q2, hydro_MW_2022_Q2, natural_gas_MW_2022_Q2, coal_MW_2022_Q2, other_fossil_MW_2022_Q2, solar_MW_2022_Q2, onshore_wind_MW_2022_Q2, nuclear_MW_2022_Q2)
+
+# Add census tract ID to generators
+generators <- generators %>%
+  mutate(census_tract_id = census_tracts$GEOID[census_tract_row_number]) %>%
+  select(-census_tract_row_number)
+
+# Merge final data with generators on census tract ID, year, and quarter
+data <- left_join(data, generators, by = "census_tract_id")
+```
+
+## Create a census tract file for using in Stata
+
+```{r}
+data$ec_ind_official <- ifelse(data$ec_ind_official_cohort_1 == 1 | data$ec_ind_official_cohort_2 == 1 | data$ec_ind_official_cohort_3 == 1, 1, 0)
+
+data_census_tract <- data %>%
+  st_drop_geometry() %>%
+  select(census_tract_id, area, total_population_2020, total_MW_2022_Q2, hydro_MW_2022_Q2, natural_gas_MW_2022_Q2, coal_MW_2022_Q2, other_fossil_MW_2022_Q2, solar_MW_2022_Q2, onshore_wind_MW_2022_Q2, nuclear_MW_2022_Q2, ec_ind_official_cohort_1, ec_ind_official_cohort_2, ec_ind_official_cohort_3, ec_ind_official) 
+```
+
+## Create a county file for using in Stata
+
+```{r}
+data_temp <- data %>%
+  st_drop_geometry() %>%
+  select(county_id, total_population_2020, all_industry_total_gdp_county_2022, trade_gdp_county_2022, transportation_utilities_gdp_county_2022, manufacturing_information_gdp_county_2022, natural_resources_mining_gdp_county_2022, government_gdp_county_2022)
+data_temp$total_population_2020 <- as.numeric(data_temp$total_population_2020)
+data_temp <- data_temp %>%
+  group_by(county_id) %>%
+  summarize(all_industry_total_gdp_county_2022 = first(all_industry_total_gdp_county_2022), 
+            trade_gdp_county_2022 = first(trade_gdp_county_2022),
+            transportation_utilities_gdp_county_2022 = first(transportation_utilities_gdp_county_2022), 
+            manufacturing_information_gdp_county_2022 = first(manufacturing_information_gdp_county_2022),
+            natural_resources_mining_gdp_county_2022 = first(natural_resources_mining_gdp_county_2022),
+            government_gdp_county_2022 = first(government_gdp_county_2022),
+            total_population_2020 = sum(total_population_2020, na.rm = TRUE)) %>%
+  unique()
+data_temp$gdp_per_capita <- data_temp$all_industry_total_gdp_county_2022 / data_temp$total_population_2020
+data_temp$gdp_trade_per_capita <- data_temp$trade_gdp_county_2022 / data_temp$total_population_2020
+data_temp$gdp_transportation_utilities_per_capita <- data_temp$transportation_utilities_gdp_county_2022 / data_temp$total_population_2020
+data_temp$gdp_manufacturing_information_per_capita <- data_temp$manufacturing_information_gdp_county_2022 / data_temp$total_population_2020
+data_temp$gdp_natural_resources_mining_per_capita <- data_temp$natural_resources_mining_gdp_county_2022 / data_temp$total_population_2020
+data_temp$gdp_government_per_capita <- data_temp$government_gdp_county_2022 / data_temp$total_population_2020
+data_temp <- data_temp %>%
+  select("county_id", "gdp_per_capita", "gdp_trade_per_capita", "gdp_transportation_utilities_per_capita", "gdp_manufacturing_information_per_capita", "gdp_natural_resources_mining_per_capita", "gdp_government_per_capita")
+
+data_temp_2 <- data %>%
+  st_drop_geometry() %>%
+  select(ec_ind_official_cohort_1, ec_ind_official_cohort_2, ec_ind_official_cohort_3, ec_ind_official, county_id, mean_solar_potential_county_2019, mean_wind_potential_county_2019, mean_wind_density_potential_county_2019, perecentage_no_high_school_county_19_23, percentage_high_school_county_19_23, percentage_college_county_19_23, percentage_bachelor_county_19_23, rural_urban_continuum_code_2023, urban_influence_code_2013, poverty_rate_2023_county, unemployment_rate_2022) %>%
+  unique()
+
+data_county <- left_join(data_temp, data_temp_2, by = "county_id")
+```
+
+```{r}
+write.csv(data_census_tract, "Data/constructed data/descriptive_stats_census_tract.csv")
+write.csv(data_county, "Data/constructed data/descriptive_stats_county.csv")
+```

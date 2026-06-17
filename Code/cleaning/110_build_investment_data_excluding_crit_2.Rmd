@@ -1,0 +1,363 @@
+---
+title: "01_build_investment_data_revisions"
+author: "Joep Keuzenkamp"
+date: "2025-01-10"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Geographic regions
+
+Here, we lay the groundwork by providing all the geographic regions in the dataset.
+
+```{r}
+# Add the census tracts
+census_tracts <- sf::st_read("Data/raw data/tlgdb_2020_a_us_substategeo.gdb", layer = "Census_Tract")
+census_tracts <- census_tracts %>%
+  select("GEOID", "NAMELSAD", "SHAPE") %>%
+  rename("census_tract_id" = "GEOID",
+         "census_tract_name" = "NAMELSAD")
+census_tracts$county_id <- str_sub(census_tracts$census_tract_id, 1, 5)
+census_tracts$state_id <- str_sub(census_tracts$census_tract_id, 1, 2)
+counties <- sf::st_read("Data/raw data/tlgdb_2020_a_us_substategeo.gdb", layer = "County")
+counties <- counties %>%
+  select("GEOID", "NAMELSAD") %>%
+  rename("county_id" = "GEOID",
+         "county_name" = "NAMELSAD") %>%
+  st_drop_geometry()
+census_tracts <- left_join(census_tracts, counties, by = "county_id")
+
+rm(counties)
+```
+
+## Add the 2023 (cohort 1) energy communities: IRS notice 2023-29
+
+```{r}
+coal_closure <- read.csv("Data/raw data/IRA_Coal_Closure_Energy_Comm_2023v2/Coal_Closure_Energy_Communities_2023v2.csv")
+coal_closure$geoid_tract_2020 <- str_pad(coal_closure$geoid_tract_2020, 11, pad = "0")
+EC_employ <- read.csv("Data/raw data/MSA_NMSA_FEE_EC_Status_2023v2/MSA_NMSA_FFE_EC_2023v2.csv")
+EC_employ$geoid_cty_2020 <- str_pad(EC_employ$geoid_cty_2020, 5, pad = "0")
+coal_closure_mine <- coal_closure %>%
+  filter(Tract_Status %in% c("is an energy community due to a coal mine closure"))
+coal_closure_mine <- unique(coal_closure_mine$geoid_tract_2020)
+coal_closure_generator <- coal_closure %>%
+  filter(Generator_Closure == "Yes")
+coal_closure_generator <- unique(coal_closure_generator$geoid_tract_2020)
+coal_closure_adjacent <- coal_closure %>%
+  filter(Adjacent_to_Closure == "Yes")
+coal_closure_adjacent <- unique(coal_closure_adjacent$geoid_tract_2020)
+EC_employ <- unique(EC_employ[EC_employ$EC_qual_status == "Yes", ]$geoid_cty_2020)
+
+data <- census_tracts
+
+data$coal_mine_closure_official_cohort_1 <- ifelse(data$census_tract_id %in% coal_closure_mine, 1, 0)
+data$generator_closure_official_cohort_1 <- ifelse(data$census_tract_id %in% coal_closure_generator, 1, 0)
+data$adjacent_closure_official_cohort_1 <- ifelse(data$census_tract_id %in% coal_closure_adjacent, 1, 0)
+data$unemployment_official_msa_cohort_1 <- ifelse(data$county_id %in% EC_employ, 1, 0)
+
+rm(coal_closure, EC_employ, coal_closure_adjacent, coal_closure_generator, coal_closure_mine)
+```
+
+## Add the 2023 (cohort 2) energy communities: IRS notice 2024-30
+
+```{r}
+coal_closure <- read.csv("Data/raw data/IRA_Coal_Closure_Energy_Comm_2023v2/Coal_Closure_Energy_Communities_2023v2.csv")
+coal_closure$geoid_tract_2020 <- str_pad(coal_closure$geoid_tract_2020, 11, pad = "0")
+EC_employ <- read.csv("Data/raw data/MSA_NMSA_EC_FFE_Status_v2023_3/MSA_NonMSA_EnergyCommunities_FossilFuelEmp_2023v3.csv")
+EC_employ$geoid_county_2020 <- str_pad(EC_employ$geoid_county_2020, 5, pad = "0")
+coal_closure_mine <- coal_closure %>%
+  filter(Tract_Status %in% c("is an energy community due to a coal mine closure"))
+coal_closure_mine <- unique(coal_closure_mine$geoid_tract_2020)
+coal_closure_generator <- coal_closure %>%
+  filter(Generator_Closure == "Yes")
+coal_closure_generator <- unique(coal_closure_generator$geoid_tract_2020)
+coal_closure_adjacent <- coal_closure %>%
+  filter(Adjacent_to_Closure == "Yes")
+coal_closure_adjacent <- unique(coal_closure_adjacent$geoid_tract_2020)
+EC_employ <- unique(EC_employ[EC_employ$ec_qual_status == "Yes", ]$geoid_county_2020)
+
+data$coal_mine_closure_official_cohort_2 <- ifelse(data$census_tract_id %in% coal_closure_mine, 1, 0)
+data$generator_closure_official_cohort_2 <- ifelse(data$census_tract_id %in% coal_closure_generator, 1, 0)
+data$adjacent_closure_official_cohort_2 <- ifelse(data$census_tract_id %in% coal_closure_adjacent, 1, 0)
+data$unemployment_official_msa_cohort_2 <- ifelse(data$county_id %in% EC_employ, 1, 0)
+
+rm(coal_closure, EC_employ, coal_closure_adjacent, coal_closure_generator, coal_closure_mine)
+```
+
+## Add the 2024 (cohort 3) energy communities: IRS notice 2024-48
+
+```{r}
+coal_closure <- read.csv("Data/raw data/Coal_Closures_EnergyComm_v2024_1/IRA_EnergyComm_CTracts_CoalClosures_v2024_1.csv")
+coal_closure$geoid_tract_2020 <- str_pad(coal_closure$geoid_tract_2020, 11, pad = "0")
+EC_employ <- read.csv("Data/raw data/MSA_NMSA_EC_FFE_v2024_1/MSA_NonMSA_EnergyCommunities_FossilFuelEmp_v2024_1.csv")
+EC_employ$geoid_county_2020 <- str_pad(EC_employ$geoid_county_2020, 5, pad = "0")
+coal_closure_mine <- coal_closure %>%
+  filter(Mine_Closure == "Yes")
+coal_closure_mine <- unique(coal_closure_mine$geoid_tract_2020)
+coal_closure_generator <- coal_closure %>%
+  filter(Generator_Closure == "Yes")
+coal_closure_generator <- unique(coal_closure_generator$geoid_tract_2020)
+coal_closure_adjacent <- coal_closure %>%
+  filter(Adjacent_to_Closure == "Yes")
+coal_closure_adjacent <- unique(coal_closure_adjacent$geoid_tract_2020)
+EC_employ <- unique(EC_employ[EC_employ$ec_qual_status == "Yes", ]$geoid_county_2020)
+
+data$coal_mine_closure_official_cohort_3 <- ifelse(data$census_tract_id %in% coal_closure_mine, 1, 0)
+data$generator_closure_official_cohort_3 <- ifelse(data$census_tract_id %in% coal_closure_generator, 1, 0)
+data$adjacent_closure_official_cohort_3 <- ifelse(data$census_tract_id %in% coal_closure_adjacent, 1, 0)
+data$unemployment_official_msa_cohort_3 <- ifelse(data$county_id %in% EC_employ, 1, 0)
+
+rm(coal_closure, EC_employ, coal_closure_adjacent, coal_closure_generator, coal_closure_mine)
+```
+
+## Add binary indicator for energy communities
+
+```{r}
+data <- data %>%
+  mutate(ec_ind_official_cohort_1 = ifelse((coal_mine_closure_official_cohort_1 == 1 | 
+                                   generator_closure_official_cohort_1 == 1 | 
+                                   adjacent_closure_official_cohort_1 == 1) |
+                                   unemployment_official_msa_cohort_1 == 1, 
+                                   1, 0))
+
+data <- data %>%
+  mutate(ec_ind_official_cohort_2 = ifelse((coal_mine_closure_official_cohort_2 == 1 | 
+                                   generator_closure_official_cohort_2 == 1 | 
+                                   adjacent_closure_official_cohort_2 == 1) |
+                                   unemployment_official_msa_cohort_2 == 1, 
+                                   1, 0))
+
+data <- data %>%
+  mutate(ec_ind_official_cohort_3 = ifelse((coal_mine_closure_official_cohort_3 == 1 | 
+                                   generator_closure_official_cohort_3 == 1 | 
+                                   adjacent_closure_official_cohort_3 == 1) |
+                                   unemployment_official_msa_cohort_3 == 1, 
+                                   1, 0))
+```
+
+## Make a timeseries dataframe
+
+```{r}
+# We should have a row for each quarter-census tract combination
+quarters <- seq.Date(from = as.Date("2018-01-01"), to = as.Date("2024-12-31"), by = "quarter")
+census_tracts <- unique(data$census_tract_id)
+all_combinations <- expand.grid(census_tract_id = census_tracts, quarter_date = quarters)
+data <- merge(all_combinations, data, by = "census_tract_id", all.x = TRUE)
+data$year <- substr(data$quarter, 1, 4)
+data <- data %>%
+  mutate(quarter = quarters(quarter_date))
+
+rm(census_tracts, all_combinations, quarters)
+```
+
+## Prepare the investment dataset and generate some statistics
+
+```{r}
+investment <- read.csv("Data/raw data/CIM/manufacturing_energy_and_industry_facility_metadata.csv", skip = 5)
+
+# Create a couple of date variables
+investment$Announcement_Date <- as.Date(investment$Announcement_Date)
+investment <- investment %>%
+  mutate(quarter = quarters(Announcement_Date),
+         year = year(Announcement_Date))
+investment <- investment[as.numeric(investment$year) > 2017, ]  
+
+investment_solar <- investment %>% 
+  filter(Segment == "Energy and Industry") %>%
+  filter(Technology == "Solar")
+
+investment_wind <- investment %>% 
+  filter(Segment == "Energy and Industry") %>%
+  filter(Technology == "Wind")
+
+# Adjust investment numbers
+investment <- investment %>%
+  mutate(Estimated_Total_Facility_CAPEX = as.numeric(as.character(Estimated_Total_Facility_CAPEX)))
+investment$Estimated_Total_Facility_CAPEX <- investment$Estimated_Total_Facility_CAPEX * 1e6
+
+investment$census_tract_2020_geoid <- as.factor(investment$census_tract_2020_geoid)
+
+rm(investment_solar, investment_wind)
+```
+
+## Add the sum of investment for solar
+
+```{r}
+solar_investment <- investment %>%
+  filter(Technology == "Solar" & Segment == "Energy and Industry" & Current_Facility_Status %in% c("Under Construction", "Operating", "Announced")) %>%
+  select(year, quarter, census_tract_2020_geoid, Estimated_Total_Facility_CAPEX) %>%
+  group_by(census_tract_2020_geoid, year, quarter) %>%
+  summarise(investment_solar = sum(Estimated_Total_Facility_CAPEX, na.rm = TRUE)) %>%
+  ungroup() %>%
+  rename("census_tract_id" = "census_tract_2020_geoid")
+
+data$year <- as.numeric(data$year)
+
+data <- left_join(data, solar_investment, by = c("census_tract_id", "year", "quarter"))
+data$investment_solar <- ifelse(is.na(data$investment_solar), 0, data$investment_solar)
+
+solar_investment <- investment %>%
+  filter(Technology == "Solar" & Segment == "Energy and Industry" & Current_Facility_Status %in% c("Under Construction")) %>%
+  select(year, quarter, census_tract_2020_geoid, Estimated_Total_Facility_CAPEX) %>%
+  group_by(census_tract_2020_geoid, year, quarter) %>%
+  summarise(investment_solar_under_construction = sum(Estimated_Total_Facility_CAPEX, na.rm = TRUE)) %>%
+  ungroup() %>%
+  rename("census_tract_id" = "census_tract_2020_geoid")
+
+data <- left_join(data, solar_investment, by = c("census_tract_id", "year", "quarter"))
+data$investment_solar_under_construction <- ifelse(is.na(data$investment_solar_under_construction), 0, data$investment_solar_under_construction)
+
+solar_investment <- investment %>%
+  filter(Technology == "Solar" & Segment == "Energy and Industry" & Current_Facility_Status %in% c("Operating")) %>%
+  select(year, quarter, census_tract_2020_geoid, Estimated_Total_Facility_CAPEX) %>%
+  group_by(census_tract_2020_geoid, year, quarter) %>%
+  summarise(investment_solar_operating = sum(Estimated_Total_Facility_CAPEX, na.rm = TRUE)) %>%
+  ungroup() %>%
+  rename("census_tract_id" = "census_tract_2020_geoid")
+
+data <- left_join(data, solar_investment, by = c("census_tract_id", "year", "quarter"))
+data$investment_solar_operating <- ifelse(is.na(data$investment_solar_operating), 0, data$investment_solar_operating)
+
+solar_investment <- investment %>%
+  filter(Technology == "Solar" & Segment == "Energy and Industry" & Current_Facility_Status %in% c("Announced")) %>%
+  select(year, quarter, census_tract_2020_geoid, Estimated_Total_Facility_CAPEX) %>%
+  group_by(census_tract_2020_geoid, year, quarter) %>%
+  summarise(investment_solar_announced = sum(Estimated_Total_Facility_CAPEX, na.rm = TRUE)) %>%
+  ungroup() %>%
+  rename("census_tract_id" = "census_tract_2020_geoid")
+
+data <- left_join(data, solar_investment, by = c("census_tract_id", "year", "quarter"))
+data$investment_solar_announced <- ifelse(is.na(data$investment_solar_announced), 0, data$investment_solar_announced)
+
+rm(solar_investment)
+```
+
+## Add the sum of investment for wind
+
+```{r}
+wind_investment <- investment %>%
+  filter(Technology == "Wind" & Segment == "Energy and Industry" & Current_Facility_Status %in% c("Under Construction", "Operating", "Announced")) %>%
+  select(year, quarter, census_tract_2020_geoid, Estimated_Total_Facility_CAPEX) %>%
+  group_by(census_tract_2020_geoid, year, quarter) %>%
+  summarise(investment_wind = sum(Estimated_Total_Facility_CAPEX, na.rm = TRUE)) %>%
+  ungroup() %>%
+  rename("census_tract_id" = "census_tract_2020_geoid")
+
+data <- left_join(data, wind_investment, by = c("census_tract_id", "year", "quarter"))
+data$investment_wind <- ifelse(is.na(data$investment_wind), 0, data$investment_wind)
+
+rm(wind_investment)
+```
+
+## Add small and large solar and wind investment separately
+
+```{r}
+solar_investment <- investment %>%
+  filter(Technology == "Solar" & Segment == "Energy and Industry" & Current_Facility_Status %in% c("Under Construction", "Operating", "Announced"))
+median_data <- solar_investment %>%
+  filter(Estimated_Total_Facility_CAPEX > 0) %>%
+  group_by(year, quarter) %>%
+  summarise(median_investment_solar = median(Estimated_Total_Facility_CAPEX, na.rm = TRUE))
+solar_investment <- solar_investment %>%
+  left_join(median_data, by = c("year", "quarter"))
+small_solar_investment <- solar_investment %>%
+  filter(Estimated_Total_Facility_CAPEX <= median_investment_solar)
+large_solar_investment <- solar_investment %>%
+  filter(Estimated_Total_Facility_CAPEX > median_investment_solar)
+
+small_solar_investment <- small_solar_investment %>%
+  select(year, quarter, census_tract_2020_geoid, Estimated_Total_Facility_CAPEX) %>%
+  group_by(census_tract_2020_geoid, year, quarter) %>%
+  summarise(investment_small_solar = sum(Estimated_Total_Facility_CAPEX, na.rm = TRUE)) %>%
+  ungroup() %>%
+  rename("census_tract_id" = "census_tract_2020_geoid")
+
+data <- left_join(data, small_solar_investment, by = c("census_tract_id", "year", "quarter"))
+data$investment_small_solar <- ifelse(is.na(data$investment_small_solar), 0, 1)
+
+large_solar_investment <- large_solar_investment %>%
+  select(year, quarter, census_tract_2020_geoid, Estimated_Total_Facility_CAPEX) %>%
+  group_by(census_tract_2020_geoid, year, quarter) %>%
+  summarise(investment_large_solar = sum(Estimated_Total_Facility_CAPEX, na.rm = TRUE)) %>%
+  ungroup() %>%
+  rename("census_tract_id" = "census_tract_2020_geoid")
+
+data <- left_join(data, large_solar_investment, by = c("census_tract_id", "year", "quarter"))
+data$investment_large_solar <- ifelse(is.na(data$investment_large_solar), 0, 1)
+
+
+wind_investment <- investment %>%
+  filter(Technology == "Wind" & Segment == "Energy and Industry" & Current_Facility_Status %in% c("Under Construction", "Operating", "Announced"))
+median_data <- wind_investment %>%
+  filter(Estimated_Total_Facility_CAPEX > 0) %>%
+  group_by(year, quarter) %>%
+  summarise(median_investment_wind = median(Estimated_Total_Facility_CAPEX, na.rm = TRUE))
+wind_investment <- wind_investment %>%
+  left_join(median_data, by = c("year", "quarter"))
+small_wind_investment <- wind_investment %>%
+  filter(Estimated_Total_Facility_CAPEX <= median_investment_wind)
+large_wind_investment <- wind_investment %>%
+  filter(Estimated_Total_Facility_CAPEX > median_investment_wind)
+
+small_wind_investment <- small_wind_investment %>%
+  select(year, quarter, census_tract_2020_geoid, Estimated_Total_Facility_CAPEX) %>%
+  group_by(census_tract_2020_geoid, year, quarter) %>%
+  summarise(investment_small_wind = sum(Estimated_Total_Facility_CAPEX, na.rm = TRUE)) %>%
+  ungroup() %>%
+  rename("census_tract_id" = "census_tract_2020_geoid")
+
+data <- left_join(data, small_wind_investment, by = c("census_tract_id", "year", "quarter"))
+data$investment_small_wind <- ifelse(is.na(data$investment_small_wind), 0, 1)
+
+large_wind_investment <- large_wind_investment %>%
+  select(year, quarter, census_tract_2020_geoid, Estimated_Total_Facility_CAPEX) %>%
+  group_by(census_tract_2020_geoid, year, quarter) %>%
+  summarise(investment_large_wind = sum(Estimated_Total_Facility_CAPEX, na.rm = TRUE)) %>%
+  ungroup() %>%
+  rename("census_tract_id" = "census_tract_2020_geoid")
+
+data <- left_join(data, large_wind_investment, by = c("census_tract_id", "year", "quarter"))
+data$investment_large_wind <- ifelse(is.na(data$investment_large_wind), 0, 1)
+
+rm(investment, large_solar_investment, large_wind_investment, median_data, small_solar_investment, small_wind_investment, solar_investment, wind_investment)
+```
+
+## Add a binary version 
+
+```{r}
+data$investment_solar_binary <- ifelse(data$investment_solar > 0, 1, 0)
+data$investment_wind_binary <- ifelse(data$investment_wind > 0, 1, 0)
+```
+
+## Filter and Save for use in Stata
+
+```{r}
+# Create treatment indicator
+data$year_quarter <- paste0(data$year, "-", data$quarter)
+data$treatment <- ifelse(data$year_quarter %in% c("2023-Q1", "2023-Q2", "2023-Q3", "2023-Q4", "2024-Q1") & data$ec_ind_official_cohort_1 == 1, 1, 0)
+data$treatment <- ifelse(data$year_quarter %in% c("2024-Q2") & data$ec_ind_official_cohort_2 == 1, 1, data$treatment)
+data$treatment <- ifelse(data$year_quarter %in% c("2024-Q3", "2024-Q4") & data$ec_ind_official_cohort_3 == 1, 1, data$treatment)
+
+# Create period variable
+data$year <- as.numeric(data$year)
+base_year <- min(data$year)  # Using the minimum year in the dataset
+data$quarter_num <- as.numeric(substr(data$quarter, 2, 2))
+data$period <- (data$year - base_year) * 4 + data$quarter_num
+
+# Remove unemployment qaulifying counties
+data <- data %>%
+  group_by(county_id) %>%
+  filter(!any(unemployment_official_msa_cohort_1 == 1 | 
+              unemployment_official_msa_cohort_2 == 1 | 
+              unemployment_official_msa_cohort_3 == 1)) %>%
+  ungroup()
+
+data_stata <- data %>%
+  st_drop_geometry() %>%
+  select(census_tract_id, year, quarter, ec_ind_official_cohort_1, ec_ind_official_cohort_2, ec_ind_official_cohort_3, investment_small_solar, investment_large_solar, investment_small_wind, investment_large_wind, investment_solar, investment_wind, investment_solar_binary, investment_wind_binary, treatment, period)
+  
+write.csv(data_stata, "Data/constructed data/investment_dataset_stata_excluding_crit_2.csv", row.names = FALSE)
+```

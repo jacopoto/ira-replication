@@ -1,0 +1,17 @@
+{
+\def\sym#1{\ifmmode^{#1}\else\(^{#1}\)\fi}
+\begin{tabular}{l*{3}{c}}
+\toprule
+            &\multicolumn{1}{c}{\makecell{Job vacancies\\employed}}&\multicolumn{1}{c}{\makecell{Time to closing\\all vacancies}}&\multicolumn{1}{c}{\makecell{Share vacancies\\with NAICS}}\\
+\midrule
+Year        &       0.002\sym{***}&       0.530\sym{***}&      -0.006\sym{***}\\
+            &    (0.0001)         &    (0.0947)         &    (0.0014)         \\
+Year $\times$ EC&      -0.000\sym{***}&      -0.098         &       0.001         \\
+            &    (0.0001)         &    (0.0605)         &    (0.0009)         \\
+\midrule
+Observations&      15,660         &      15,660         &      15,660         \\
+$R^{2}$     &       0.649         &       0.367         &       0.496         \\
+Adjusted $R^{2}$&       0.561         &       0.209         &       0.369         \\
+\bottomrule
+\end{tabular}
+}

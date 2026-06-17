@@ -1,0 +1,238 @@
+---
+title: "08_build_auxiliarytest_data"
+output: html_document
+date: "2025-07-18"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Geographic regions
+
+Here, we lay the groundwork by providing all the geographic regions in the dataset.
+
+```{r}
+counties <- sf::st_read("Data/raw data/tlgdb_2020_a_us_substategeo.gdb", layer = "County")
+counties <- counties %>%
+  select("GEOID", "NAMELSAD") %>%
+  rename("county_id" = "GEOID",
+         "county_name" = "NAMELSAD") %>%
+  st_drop_geometry()
+```
+
+## Create a time-series aspect
+
+```{r}
+# We should have a row for each quarter-census tract combination
+quarters <- seq.Date(from = as.Date("2015-01-01"), to = as.Date("2024-12-31"), by = "quarter")
+counties <- unique(counties$county_id)
+data <- expand.grid(county_id = counties, quarter_date = quarters)
+data$year <- substr(data$quarter, 1, 4)
+data <- data %>%
+  mutate(quarter = quarters(quarter_date))
+
+rm(counties, all_combinations, quarters)
+```
+
+## Prepare the investment dataset
+
+```{r}
+investment <- read.csv("Data/raw data/CIM/manufacturing_energy_and_industry_facility_metadata.csv", skip = 5)
+
+# Adjust investment numbers
+investment <- investment %>%
+  mutate(Estimated_Total_Facility_CAPEX = as.numeric(as.character(Estimated_Total_Facility_CAPEX)))
+investment$Estimated_Total_Facility_CAPEX <- investment$Estimated_Total_Facility_CAPEX * 1e6
+
+# Create a couple of date variables
+investment$Announcement_Date <- as.Date(investment$Announcement_Date)
+investment <- investment %>%
+  mutate(quarter = quarters(Announcement_Date),
+         year = year(Announcement_Date))
+investment <- investment[investment$year > 2017, ]
+investment$county_2020_geoid <- str_pad(investment$county_2020_geoid, 5, pad = "0")
+
+solar_investment <- investment %>%
+  filter(Technology == "Solar" & Segment == "Energy and Industry" & Current_Facility_Status %in% c("Under Construction", "Operating", "Announced")) %>%
+  select(year, quarter, county_2020_geoid, Estimated_Total_Facility_CAPEX) %>%
+  group_by(county_2020_geoid, year, quarter) %>%
+  summarise(investment_solar = sum(Estimated_Total_Facility_CAPEX, na.rm = TRUE)) %>%
+  ungroup() %>%
+  rename("county_id" = "county_2020_geoid")
+
+data$year <- as.numeric(data$year)
+
+data <- left_join(data, solar_investment, by = c("county_id", "year", "quarter"))
+data$investment_solar <- ifelse(is.na(data$investment_solar), 0, data$investment_solar)
+data$investment_solar_binary <- ifelse(data$investment_solar > 0, 1, 0)
+```
+
+# Add solar labor demand
+
+```{r}
+solar_employment_2015_16 <- read.csv("Data/lightcast data/Create_Solar_Dataset_2015_16.csv")
+colnames(solar_employment_2015_16) <- solar_employment_2015_16[1, ]
+solar_employment_2015_16 <- solar_employment_2015_16[-1, ]
+solar_employment_2017_18 <- read.csv("Data/lightcast data/Create_Solar_Dataset_2017_18.csv")
+colnames(solar_employment_2017_18) <- solar_employment_2017_18[1, ]
+solar_employment_2017_18 <- solar_employment_2017_18[-1, ]
+solar_employment_2019_20 <- read.csv("Data/lightcast data/Create_Solar_Dataset_2019_20.csv")
+colnames(solar_employment_2019_20) <- solar_employment_2019_20[1, ]
+solar_employment_2019_20 <- solar_employment_2019_20[-1, ]
+solar_employment_2021_22 <- read.csv("Data/lightcast data/Create_Solar_Dataset_2021_22.csv")
+colnames(solar_employment_2021_22) <- solar_employment_2021_22[1, ]
+solar_employment_2021_22 <- solar_employment_2021_22[-1, ]
+solar_employment_2023_24 <- read.csv("Data/lightcast data/Create_Solar_Dataset_2023_24.csv")
+colnames(solar_employment_2023_24) <- solar_employment_2023_24[1, ]
+solar_employment_2023_24 <- solar_employment_2023_24[-1, ]
+
+solar_employment <- rbind(solar_employment_2015_16, solar_employment_2017_18)
+solar_employment <- rbind(solar_employment, solar_employment_2019_20)
+solar_employment <- rbind(solar_employment, solar_employment_2021_22)
+solar_employment <- rbind(solar_employment, solar_employment_2023_24)
+
+solar_employment_skill_type <- solar_employment %>%
+  filter(!is.na(career_type)) %>%
+  group_by(county_id, year, month, career_type) %>%
+  summarise(total_count = sum(as.numeric(total_count)), .groups = 'drop') %>%
+  pivot_wider(names_from = career_type, values_from = total_count, values_fill = 0) %>%
+  rename_with(~ str_replace_all(., " ", "_"), everything()) %>%
+  mutate(
+    county_id = str_pad(as.numeric(sub("^US", "", county_id)), 5, pad = "0"),
+    low_skilled_solar_technologies = `9`, 
+    mid_skilled_solar_technologies = rowSums(select(., `4`, `5`, `6`, `7`, `8`), na.rm = TRUE),
+    high_skilled_solar_technologies = rowSums(select(., `1`, `2`, `3`), na.rm = TRUE),
+    solar_technologies_job_vacancies = rowSums(select(., `null`, `1`, `2`, `3`, `4`, `5`, `6`, `7`, `8`, `9`), na.rm = TRUE)
+  ) %>%
+  ungroup()
+
+solar_employment_skill_type$year <- as.numeric(solar_employment_skill_type$year)
+solar_employment_skill_type$month <- as.numeric(solar_employment_skill_type$month)
+
+solar_employment_skill_type_quarterly <- solar_employment_skill_type %>%
+  select(county_id, year, month, solar_technologies_job_vacancies, low_skilled_solar_technologies, mid_skilled_solar_technologies, high_skilled_solar_technologies) %>%
+  mutate(quarter = quarter(month)) %>%  # Convert month to quarter
+  select(-month) %>%  # Remove the month column
+  group_by(county_id, year, quarter) %>%  # Group by county_id, year, and quarter
+  summarise(across(everything(), \(x) sum(x, na.rm = TRUE)), .groups = "drop") %>%
+  ungroup()
+
+solar_employment_skill_type_quarterly$quarter <- str_pad(solar_employment_skill_type_quarterly$quarter, 2, pad = "Q")
+
+data <- left_join(data, solar_employment_skill_type_quarterly, by = c("county_id", "year", "quarter"))
+rm(solar_employment_2017_18, solar_employment_2019_20, solar_employment_2021_22, solar_employment_2023_24, solar_employment_skill_type, solar_employment_skill_type_quarterly, solar_employment_2015_16, solar_employment)
+```
+
+## Add the total number of job vacancies
+
+```{r}
+employment <- read.csv("Data/lightcast data/Create_Total_Dataset.csv")
+colnames(employment) <- employment[1, ]
+employment <- employment[-1, ]
+
+# 1. Clean and summarize total employment
+employment_summary <- employment %>%
+  group_by(county_id, year, month) %>%
+  summarise(
+    total_count = sum(as.numeric(total_count), na.rm = TRUE),
+    .groups = 'drop'
+  ) %>%
+  mutate(
+    county_id = str_pad(as.numeric(sub("^US", "", county_id)), 5, pad = "0")
+  ) %>%
+  ungroup()
+
+# 2. Define skill level categories
+high_skill <- c("Managers", "Professionals", "Technicians and Associate Professionals")
+mid_skill <- c("Clerical Support Workers", "Service and Sales Workers", "Skilled Agricultural, Forestry and Fishery Workers", "Craft and Related Trades Workers", "Plant and Machine Operators, and Assemblers")
+low_skill <- c("Elementary Occupations")
+
+# 3. Create summaries for each skill level
+high_skilled_jobs <- employment %>%
+  filter(career_type %in% high_skill) %>%
+  group_by(county_id, year, month) %>%
+  summarise(high_skilled_jobs = sum(as.numeric(total_count), na.rm = TRUE), .groups = "drop") %>%
+  mutate(county_id = str_pad(as.numeric(sub("^US", "", county_id)), 5, pad = "0")) %>%
+  ungroup()
+
+mid_skilled_jobs <- employment %>%
+  filter(career_type %in% mid_skill) %>%
+  group_by(county_id, year, month) %>%
+  summarise(mid_skilled_jobs = sum(as.numeric(total_count), na.rm = TRUE), .groups = "drop") %>%
+  mutate(county_id = str_pad(as.numeric(sub("^US", "", county_id)), 5, pad = "0")) %>%
+  ungroup()
+
+low_skilled_jobs <- employment %>%
+  filter(career_type %in% low_skill) %>%
+  group_by(county_id, year, month) %>%
+  summarise(low_skilled_jobs = sum(as.numeric(total_count), na.rm = TRUE), .groups = "drop") %>%
+  mutate(county_id = str_pad(as.numeric(sub("^US", "", county_id)), 5, pad = "0")) %>%
+  ungroup()
+
+# 4. Merge them all together
+employment_combined <- employment_summary %>%
+  left_join(high_skilled_jobs, by = c("county_id", "year", "month")) %>%
+  left_join(mid_skilled_jobs, by = c("county_id", "year", "month")) %>%
+  left_join(low_skilled_jobs, by = c("county_id", "year", "month")) %>%
+  replace_na(list(high_skilled_jobs = 0, mid_skilled_jobs = 0, low_skilled_jobs = 0))
+
+employment_combined$year <- as.numeric(employment_combined$year)
+employment_combined$month <- as.numeric(employment_combined$month)
+
+employment <- employment_combined %>%
+  mutate(quarter = quarter(month)) %>%  # Convert month to quarter
+  select(-month) %>%  # Remove the month column
+  group_by(county_id, year, quarter) %>%  # Group by county_id, year, and quarter
+  summarise(across(everything(), \(x) sum(x, na.rm = TRUE)), .groups = "drop") %>%
+  ungroup()
+
+employment$quarter <- str_pad(employment$quarter, 2, pad = "Q")
+
+data <- left_join(data, employment, by = c("county_id", "year", "quarter"))
+rm(employment, employment_combined, low_skilled_jobs, mid_skilled_jobs, high_skilled_jobs, employment_summary, low_skill, mid_skill, high_skill)
+```
+
+## Create a dataframe which can be executed in Stata to run de chaisemartin & d'haultfoeille
+
+```{r}
+data$solar_technologies_job_vacancies_percentage <- data$solar_technologies_job_vacancies / data$total_count
+
+data_temp <- data %>%
+  select(county_id, year, quarter, investment_solar_binary, solar_technologies_job_vacancies_percentage)
+
+data_temp$quarter_num <- as.numeric(str_remove(data_temp$quarter, "Q"))
+data_temp$time_index <- (data_temp$year - min(data_temp$year)) * 4 + data_temp$quarter_num
+
+# Step 2: Function to propagate values forward
+add_distributed_effect <- function(data, varname, newname, horizon = 8) {
+  stopifnot("county_id" %in% names(data), "time_index" %in% names(data))
+  
+  varname_str <- as.character(rlang::ensym(varname))
+  newname_str <- as.character(rlang::ensym(newname))
+  
+  data %>%
+    arrange(county_id, time_index) %>%
+    group_by(county_id) %>%
+    mutate(
+      !!newname_str := {
+        vals <- rep(0, n())
+        for (i in seq_len(n())) {
+          if (.data[[varname_str]][i] > 0) {
+            # Set current and next (horizon-1) periods to this value
+            end_idx <- min(i + horizon - 1, n())
+            vals[i:end_idx] <- .data[[varname_str]][i]
+          }
+        }
+        vals
+      }
+    ) %>%
+    ungroup()
+}
+
+# Step 3: Apply for solar
+data_temp <- data_temp %>%
+  add_distributed_effect("investment_solar_binary", "treatment_solar_binary", horizon = 10)
+
+write.csv(data_temp, "Data/constructed data/final_solar_labor_demand_solar_investment_stata.csv")
+```

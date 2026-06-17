@@ -1,0 +1,277 @@
+---
+title: "05_build_election_data"
+author: "Joep Keuzenkamp"
+date: "2025-01-10"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Geographic regions
+
+Here, we lay the groundwork by providing all the geographic regions in the dataset.
+
+```{r}
+# Add the census tracts
+census_tracts <- sf::st_read("Data/raw data/tlgdb_2020_a_us_substategeo.gdb", layer = "Census_Tract")
+census_tracts <- census_tracts %>%
+  select("GEOID", "NAMELSAD", "SHAPE") %>%
+  rename("census_tract_id" = "GEOID",
+         "census_tract_name" = "NAMELSAD")
+census_tracts$county_id <- str_sub(census_tracts$census_tract_id, 1, 5)
+census_tracts$state_id <- str_sub(census_tracts$census_tract_id, 1, 2)
+counties <- sf::st_read("Data/raw data/tlgdb_2020_a_us_substategeo.gdb", layer = "County")
+counties <- counties %>%
+  select("GEOID", "NAMELSAD") %>%
+  rename("county_id" = "GEOID",
+         "county_name" = "NAMELSAD") %>%
+  st_drop_geometry()
+census_tracts <- left_join(census_tracts, counties, by = "county_id")
+
+rm(counties)
+```
+
+## Add the 2023 (cohort 1) energy communities: IRS notice 2023-29
+
+```{r}
+coal_closure <- read.csv("Data/raw data/IRA_Coal_Closure_Energy_Comm_2023v2/Coal_Closure_Energy_Communities_2023v2.csv")
+coal_closure$geoid_tract_2020 <- str_pad(coal_closure$geoid_tract_2020, 11, pad = "0")
+EC_employ <- read.csv("Data/raw data/MSA_NMSA_FEE_EC_Status_2023v2/MSA_NMSA_FFE_EC_2023v2.csv")
+EC_employ$geoid_cty_2020 <- str_pad(EC_employ$geoid_cty_2020, 5, pad = "0")
+coal_closure_mine <- coal_closure %>%
+  filter(Tract_Status %in% c("is an energy community due to a coal mine closure"))
+coal_closure_mine <- unique(coal_closure_mine$geoid_tract_2020)
+coal_closure_generator <- coal_closure %>%
+  filter(Generator_Closure == "Yes")
+coal_closure_generator <- unique(coal_closure_generator$geoid_tract_2020)
+coal_closure_adjacent <- coal_closure %>%
+  filter(Adjacent_to_Closure == "Yes")
+coal_closure_adjacent <- unique(coal_closure_adjacent$geoid_tract_2020)
+EC_employ <- unique(EC_employ[EC_employ$EC_qual_status == "Yes", ]$geoid_cty_2020)
+
+data <- census_tracts
+
+data$coal_mine_closure_official_cohort_1 <- ifelse(data$census_tract_id %in% coal_closure_mine, 1, 0)
+data$generator_closure_official_cohort_1 <- ifelse(data$census_tract_id %in% coal_closure_generator, 1, 0)
+data$adjacent_closure_official_cohort_1 <- ifelse(data$census_tract_id %in% coal_closure_adjacent, 1, 0)
+data$unemployment_official_msa_cohort_1 <- ifelse(data$county_id %in% EC_employ, 1, 0)
+
+rm(coal_closure, EC_employ, coal_closure_adjacent, coal_closure_generator, coal_closure_mine)
+```
+
+## Add the 2023 (cohort 2) energy communities: IRS notice 2024-30
+
+```{r}
+coal_closure <- read.csv("Data/raw data/IRA_Coal_Closure_Energy_Comm_2023v2/Coal_Closure_Energy_Communities_2023v2.csv")
+coal_closure$geoid_tract_2020 <- str_pad(coal_closure$geoid_tract_2020, 11, pad = "0")
+EC_employ <- read.csv("Data/raw data/MSA_NMSA_EC_FFE_Status_v2023_3/MSA_NonMSA_EnergyCommunities_FossilFuelEmp_2023v3.csv")
+EC_employ$geoid_county_2020 <- str_pad(EC_employ$geoid_county_2020, 5, pad = "0")
+coal_closure_mine <- coal_closure %>%
+  filter(Tract_Status %in% c("is an energy community due to a coal mine closure"))
+coal_closure_mine <- unique(coal_closure_mine$geoid_tract_2020)
+coal_closure_generator <- coal_closure %>%
+  filter(Generator_Closure == "Yes")
+coal_closure_generator <- unique(coal_closure_generator$geoid_tract_2020)
+coal_closure_adjacent <- coal_closure %>%
+  filter(Adjacent_to_Closure == "Yes")
+coal_closure_adjacent <- unique(coal_closure_adjacent$geoid_tract_2020)
+EC_employ <- unique(EC_employ[EC_employ$ec_qual_status == "Yes", ]$geoid_county_2020)
+
+data$coal_mine_closure_official_cohort_2 <- ifelse(data$census_tract_id %in% coal_closure_mine, 1, 0)
+data$generator_closure_official_cohort_2 <- ifelse(data$census_tract_id %in% coal_closure_generator, 1, 0)
+data$adjacent_closure_official_cohort_2 <- ifelse(data$census_tract_id %in% coal_closure_adjacent, 1, 0)
+data$unemployment_official_msa_cohort_2 <- ifelse(data$county_id %in% EC_employ, 1, 0)
+
+rm(coal_closure, EC_employ, coal_closure_adjacent, coal_closure_generator, coal_closure_mine)
+```
+
+## Add the 2024 (cohort 3) energy communities: IRS notice 2024-48
+
+```{r}
+coal_closure <- read.csv("Data/raw data/Coal_Closures_EnergyComm_v2024_1/IRA_EnergyComm_CTracts_CoalClosures_v2024_1.csv")
+coal_closure$geoid_tract_2020 <- str_pad(coal_closure$geoid_tract_2020, 11, pad = "0")
+EC_employ <- read.csv("Data/raw data/MSA_NMSA_EC_FFE_v2024_1/MSA_NonMSA_EnergyCommunities_FossilFuelEmp_v2024_1.csv")
+EC_employ$geoid_county_2020 <- str_pad(EC_employ$geoid_county_2020, 5, pad = "0")
+coal_closure_mine <- coal_closure %>%
+  filter(Mine_Closure == "Yes")
+coal_closure_mine <- unique(coal_closure_mine$geoid_tract_2020)
+coal_closure_generator <- coal_closure %>%
+  filter(Generator_Closure == "Yes")
+coal_closure_generator <- unique(coal_closure_generator$geoid_tract_2020)
+coal_closure_adjacent <- coal_closure %>%
+  filter(Adjacent_to_Closure == "Yes")
+coal_closure_adjacent <- unique(coal_closure_adjacent$geoid_tract_2020)
+EC_employ <- unique(EC_employ[EC_employ$ec_qual_status == "Yes", ]$geoid_county_2020)
+
+data$coal_mine_closure_official_cohort_3 <- ifelse(data$census_tract_id %in% coal_closure_mine, 1, 0)
+data$generator_closure_official_cohort_3 <- ifelse(data$census_tract_id %in% coal_closure_generator, 1, 0)
+data$adjacent_closure_official_cohort_3 <- ifelse(data$census_tract_id %in% coal_closure_adjacent, 1, 0)
+data$unemployment_official_msa_cohort_3 <- ifelse(data$county_id %in% EC_employ, 1, 0)
+
+rm(coal_closure, EC_employ, coal_closure_adjacent, coal_closure_generator, coal_closure_mine)
+```
+
+## Add binary indicator for energy communities
+
+```{r}
+data <- data %>%
+  mutate(ec_ind_official_cohort_1 = ifelse((coal_mine_closure_official_cohort_1 == 1 | 
+                                   generator_closure_official_cohort_1 == 1 | 
+                                   adjacent_closure_official_cohort_1 == 1) |
+                                   unemployment_official_msa_cohort_1 == 1, 
+                                   1, 0))
+
+data <- data %>%
+  mutate(ec_ind_official_cohort_2 = ifelse((coal_mine_closure_official_cohort_2 == 1 | 
+                                   generator_closure_official_cohort_2 == 1 | 
+                                   adjacent_closure_official_cohort_2 == 1) |
+                                   unemployment_official_msa_cohort_2 == 1, 
+                                   1, 0))
+
+data <- data %>%
+  mutate(ec_ind_official_cohort_3 = ifelse((coal_mine_closure_official_cohort_3 == 1 | 
+                                   generator_closure_official_cohort_3 == 1 | 
+                                   adjacent_closure_official_cohort_3 == 1) |
+                                   unemployment_official_msa_cohort_3 == 1, 
+                                   1, 0))
+```
+
+## Read in the datasets and prepare them
+
+```{r}
+## Land Surface Area
+data <- st_as_sf(data)
+data$area <- st_area(data)/1000
+
+# We should have a row for each quarter-census tract combination
+quarters <- seq.Date(from = as.Date("2000-01-01"), to = as.Date("2024-12-31"), by = "quarter")
+census_tracts <- unique(data$census_tract_id)
+all_combinations <- expand.grid(census_tract_id = census_tracts, quarter_date = quarters)
+data <- merge(all_combinations, data, by = "census_tract_id", all.x = TRUE)
+data$year <- substr(data$quarter_date, 1, 4)
+
+rm(census_tracts, all_combinations, quarters)
+```
+
+## Add the Population by census tract
+
+```{r}
+population <- read.csv("Data/raw data/DECENNIALDP2020.DP1_2024-04-08T040530/DECENNIALDP2020.DP1-Data.csv")
+population <- population[-1, ]
+population <- subset(population, select = c("GEO_ID", "NAME", "DP1_0001C", "DP1_0006C", "DP1_0007C", "DP1_0008C", "DP1_0009C", "DP1_0010C", "DP1_0011C", "DP1_0012C", "DP1_0013C", "DP1_0014C"))
+population <- population %>%
+  rename("total_population_2020" = "DP1_0001C")
+population$working_age_population_2020 <- as.numeric(population$DP1_0006C) + as.numeric(population$DP1_0007C) + as.numeric(population$DP1_0008C) + as.numeric(population$DP1_0009C) + as.numeric(population$DP1_0010C) + as.numeric(population$DP1_0011C) + as.numeric(population$DP1_0012C) + as.numeric(population$DP1_0013C) + as.numeric(population$DP1_0014C)
+population$census_tract_id <- sub(".*US", "", population$GEO_ID)
+population <- population %>%
+  select(census_tract_id, total_population_2020, working_age_population_2020)
+
+# Merge the demographics with the complete dataset
+data <- left_join(data, population, by = "census_tract_id")
+
+rm(population)
+```
+
+## Transform the dataframe so that we have counties as the basis
+
+```{r}
+data <- data %>%
+  st_drop_geometry() %>%
+  select(census_tract_id, county_id, county_name, state_id, ec_ind_official_cohort_1, ec_ind_official_cohort_2, ec_ind_official_cohort_3, area, year, total_population_2020, working_age_population_2020) %>% unique()
+data$area <- as.numeric(data$area)
+data$total_population_2020 <- as.numeric(data$total_population_2020)
+
+data <- data %>%
+  group_by(county_id, year) %>%
+  summarise(county_name = first(county_name),
+            state_id = first(state_id),
+            ec_ind_official_cohort_1_percentage = mean(ec_ind_official_cohort_1, na.rm = TRUE),
+            ec_ind_official_cohort_2_percentage = mean(ec_ind_official_cohort_2, na.rm = TRUE),
+            ec_ind_official_cohort_3_percentage = mean(ec_ind_official_cohort_3, na.rm = TRUE),
+            ec_ind_official_cohort_1_area_weighted = weighted.mean(ec_ind_official_cohort_1, area, na.rm = TRUE),
+            ec_ind_official_cohort_2_area_weighted = weighted.mean(ec_ind_official_cohort_2, area, na.rm = TRUE),
+            ec_ind_official_cohort_3_area_weighted = weighted.mean(ec_ind_official_cohort_3, area, na.rm = TRUE),
+            ec_ind_official_cohort_1_population_weighted = weighted.mean(ec_ind_official_cohort_1, total_population_2020, na.rm = TRUE),
+            ec_ind_official_cohort_2_population_weighted = weighted.mean(ec_ind_official_cohort_2, total_population_2020, na.rm = TRUE),
+            ec_ind_official_cohort_3_population_weighted = weighted.mean(ec_ind_official_cohort_3, total_population_2020, na.rm = TRUE),
+            ec_ind_official_cohort_1_working_population_weighted = weighted.mean(ec_ind_official_cohort_1, working_age_population_2020, na.rm = TRUE),
+            ec_ind_official_cohort_2_working_population_weighted = weighted.mean(ec_ind_official_cohort_2, working_age_population_2020, na.rm = TRUE),
+            ec_ind_official_cohort_3_working_population_weighted = weighted.mean(ec_ind_official_cohort_3, working_age_population_2020, na.rm = TRUE),
+            area = sum(area, na.rm = TRUE),
+            total_population_2020 = sum(total_population_2020, na.rm = TRUE),
+            working_age_population_2020 = sum(working_age_population_2020, na.rm = TRUE))
+```
+
+# Presidential election
+
+```{r}
+# Let's add the election data
+election <- read.csv("Data/raw data/countypres_2000-2024.csv")
+election$county_fips <- as.character(election$county_fips)
+election$county_fips <- str_pad(election$county_fips, 5, pad = "0")
+election <- subset(election, select = c("year", "party", "candidatevotes", "totalvotes", "county_fips"))
+unique_counties <- unique(election$county_fips)
+unique_years <- unique(years <- unique(election$year))
+all_combinations <- expand.grid(county_id = unique_counties, year = unique_years)
+temp_data <- election %>% filter(party == "DEMOCRAT")
+temp_data <- temp_data %>% 
+  group_by(county_fips, year) %>%
+  summarise(candidatevotes = sum(candidatevotes)) %>%
+  rename("county_id" = "county_fips")
+election_data <- left_join(all_combinations, temp_data, by = c("county_id", "year"))
+election_data <- election_data %>%
+  rename("democrat_votes_county" = "candidatevotes")
+temp_data <- election %>% filter(party == "REPUBLICAN")
+temp_data <- temp_data %>% 
+  group_by(county_fips, year) %>%
+  summarise(candidatevotes = sum(candidatevotes)) %>%
+  rename("county_id" = "county_fips")
+election_data <- left_join(election_data, temp_data, by = c("county_id", "year"))
+election_data <- election_data %>%
+  rename("republican_votes_county" = "candidatevotes")
+temp_data <- election %>% filter(party %in% c("OTHER"))
+temp_data <- temp_data %>% 
+  group_by(county_fips, year) %>%
+  summarise(candidatevotes = sum(candidatevotes)) %>%
+  rename("county_id" = "county_fips")
+election_data <- left_join(election_data, temp_data, by = c("county_id", "year"))
+election_data <- election_data %>%
+  rename("third_party_votes_county" = "candidatevotes")
+election <- election %>%
+  select(year, county_fips, totalvotes) %>%
+  unique() %>%
+  rename("county_id" = "county_fips",
+         "total_votes_county" = "totalvotes")
+election_data <- left_join(election_data, election, by = c("county_id", "year"))
+
+election_data <- election_data %>%
+  mutate(republican_voteshare_county = republican_votes_county / total_votes_county,
+         democrat_voteshare_county = democrat_votes_county / total_votes_county,
+         third_party_voteshare_county =  third_party_votes_county / total_votes_county)
+
+# Merge with the total dataset
+data$county_id <- str_pad(data$county_id, 5, pad = "0")
+data$year <- as.numeric(data$year)
+data <- left_join(data, election_data, by = c("county_id", "year"))
+
+rm(election, election_data, temp_data, unique_counties, unique_years, years, all_combinations)
+
+gc()
+```
+
+## Create a two-party vote share
+
+```{r}
+data$democrat_twoparty_voteshare_county <- data$democrat_votes_county / (data$democrat_votes_county + data$republican_votes_county)
+data$republican_twoparty_voteshare_county <- data$republican_votes_county / (data$democrat_votes_county + data$republican_votes_county)
+data <- data %>%
+  filter(year %in% c(2000, 2004, 2008, 2012, 2016, 2020, 2024))
+```
+
+## Write the data file
+
+```{r}
+write.csv(data, "Data/constructed data/final_election_file.csv", row.names = FALSE)
+```

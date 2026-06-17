@@ -1,0 +1,1061 @@
+---
+title: "build_matching"
+output: html_document
+date: "2025-11-10"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Geographic regions
+
+Here, we lay the groundwork by providing all the geographic regions in the dataset.
+
+```{r}
+# Add the census tracts
+census_tracts <- sf::st_read("Data/raw data/tlgdb_2020_a_us_substategeo.gdb", layer = "Census_Tract")
+census_tracts <- census_tracts %>%
+  select("GEOID", "NAMELSAD", "SHAPE") %>%
+  rename("census_tract_id" = "GEOID",
+         "census_tract_name" = "NAMELSAD")
+census_tracts$county_id <- str_sub(census_tracts$census_tract_id, 1, 5)
+census_tracts$state_id <- str_sub(census_tracts$census_tract_id, 1, 2)
+counties <- sf::st_read("Data/raw data/tlgdb_2020_a_us_substategeo.gdb", layer = "County")
+counties <- counties %>%
+  select("GEOID", "NAMELSAD") %>%
+  rename("county_id" = "GEOID",
+         "county_name" = "NAMELSAD") %>%
+  st_drop_geometry()
+census_tracts <- left_join(census_tracts, counties, by = "county_id")
+
+rm(counties)
+```
+
+## Add the 2023 (cohort 1) energy communities: IRS notice 2023-29
+
+```{r}
+coal_closure <- read.csv("Data/raw data/IRA_Coal_Closure_Energy_Comm_2023v2/Coal_Closure_Energy_Communities_2023v2.csv")
+coal_closure$geoid_tract_2020 <- str_pad(coal_closure$geoid_tract_2020, 11, pad = "0")
+EC_employ <- read.csv("Data/raw data/MSA_NMSA_FEE_EC_Status_2023v2/MSA_NMSA_FFE_EC_2023v2.csv")
+EC_employ$geoid_cty_2020 <- str_pad(EC_employ$geoid_cty_2020, 5, pad = "0")
+coal_closure_mine <- coal_closure %>%
+  filter(Tract_Status %in% c("is an energy community due to a coal mine closure"))
+coal_closure_mine <- unique(coal_closure_mine$geoid_tract_2020)
+coal_closure_generator <- coal_closure %>%
+  filter(Generator_Closure == "Yes")
+coal_closure_generator <- unique(coal_closure_generator$geoid_tract_2020)
+coal_closure_adjacent <- coal_closure %>%
+  filter(Adjacent_to_Closure == "Yes")
+coal_closure_adjacent <- unique(coal_closure_adjacent$geoid_tract_2020)
+EC_employ <- unique(EC_employ[EC_employ$EC_qual_status == "Yes", ]$geoid_cty_2020)
+
+data <- census_tracts
+
+data$coal_mine_closure_official_cohort_1 <- ifelse(data$census_tract_id %in% coal_closure_mine, 1, 0)
+data$generator_closure_official_cohort_1 <- ifelse(data$census_tract_id %in% coal_closure_generator, 1, 0)
+data$adjacent_closure_official_cohort_1 <- ifelse(data$census_tract_id %in% coal_closure_adjacent, 1, 0)
+data$unemployment_official_msa_cohort_1 <- ifelse(data$county_id %in% EC_employ, 1, 0)
+
+rm(coal_closure, EC_employ, coal_closure_adjacent, coal_closure_generator, coal_closure_mine)
+```
+
+## Add the 2023 (cohort 2) energy communities: IRS notice 2024-30
+
+```{r}
+coal_closure <- read.csv("Data/raw data/IRA_Coal_Closure_Energy_Comm_2023v2/Coal_Closure_Energy_Communities_2023v2.csv")
+coal_closure$geoid_tract_2020 <- str_pad(coal_closure$geoid_tract_2020, 11, pad = "0")
+EC_employ <- read.csv("Data/raw data/MSA_NMSA_EC_FFE_Status_v2023_3/MSA_NonMSA_EnergyCommunities_FossilFuelEmp_2023v3.csv")
+EC_employ$geoid_county_2020 <- str_pad(EC_employ$geoid_county_2020, 5, pad = "0")
+coal_closure_mine <- coal_closure %>%
+  filter(Tract_Status %in% c("is an energy community due to a coal mine closure"))
+coal_closure_mine <- unique(coal_closure_mine$geoid_tract_2020)
+coal_closure_generator <- coal_closure %>%
+  filter(Generator_Closure == "Yes")
+coal_closure_generator <- unique(coal_closure_generator$geoid_tract_2020)
+coal_closure_adjacent <- coal_closure %>%
+  filter(Adjacent_to_Closure == "Yes")
+coal_closure_adjacent <- unique(coal_closure_adjacent$geoid_tract_2020)
+EC_employ <- unique(EC_employ[EC_employ$ec_qual_status == "Yes", ]$geoid_county_2020)
+
+data$coal_mine_closure_official_cohort_2 <- ifelse(data$census_tract_id %in% coal_closure_mine, 1, 0)
+data$generator_closure_official_cohort_2 <- ifelse(data$census_tract_id %in% coal_closure_generator, 1, 0)
+data$adjacent_closure_official_cohort_2 <- ifelse(data$census_tract_id %in% coal_closure_adjacent, 1, 0)
+data$unemployment_official_msa_cohort_2 <- ifelse(data$county_id %in% EC_employ, 1, 0)
+
+rm(coal_closure, EC_employ, coal_closure_adjacent, coal_closure_generator, coal_closure_mine)
+```
+
+## Add the 2024 (cohort 3) energy communities: IRS notice 2024-48
+
+```{r}
+coal_closure <- read.csv("Data/raw data/Coal_Closures_EnergyComm_v2024_1/IRA_EnergyComm_CTracts_CoalClosures_v2024_1.csv")
+coal_closure$geoid_tract_2020 <- str_pad(coal_closure$geoid_tract_2020, 11, pad = "0")
+EC_employ <- read.csv("Data/raw data/MSA_NMSA_EC_FFE_v2024_1/MSA_NonMSA_EnergyCommunities_FossilFuelEmp_v2024_1.csv")
+EC_employ$geoid_county_2020 <- str_pad(EC_employ$geoid_county_2020, 5, pad = "0")
+coal_closure_mine <- coal_closure %>%
+  filter(Mine_Closure == "Yes")
+coal_closure_mine <- unique(coal_closure_mine$geoid_tract_2020)
+coal_closure_generator <- coal_closure %>%
+  filter(Generator_Closure == "Yes")
+coal_closure_generator <- unique(coal_closure_generator$geoid_tract_2020)
+coal_closure_adjacent <- coal_closure %>%
+  filter(Adjacent_to_Closure == "Yes")
+coal_closure_adjacent <- unique(coal_closure_adjacent$geoid_tract_2020)
+EC_employ <- unique(EC_employ[EC_employ$ec_qual_status == "Yes", ]$geoid_county_2020)
+
+data$coal_mine_closure_official_cohort_3 <- ifelse(data$census_tract_id %in% coal_closure_mine, 1, 0)
+data$generator_closure_official_cohort_3 <- ifelse(data$census_tract_id %in% coal_closure_generator, 1, 0)
+data$adjacent_closure_official_cohort_3 <- ifelse(data$census_tract_id %in% coal_closure_adjacent, 1, 0)
+data$unemployment_official_msa_cohort_3 <- ifelse(data$county_id %in% EC_employ, 1, 0)
+
+rm(coal_closure, EC_employ, coal_closure_adjacent, coal_closure_generator, coal_closure_mine)
+```
+
+## Add binary indicator for energy communities
+
+```{r}
+data <- data %>%
+  mutate(ec_ind_official_cohort_1 = ifelse((coal_mine_closure_official_cohort_1 == 1 | 
+                                   generator_closure_official_cohort_1 == 1 | 
+                                   adjacent_closure_official_cohort_1 == 1) |
+                                   unemployment_official_msa_cohort_1 == 1, 
+                                   1, 0))
+
+data <- data %>%
+  mutate(ec_ind_official_cohort_2 = ifelse((coal_mine_closure_official_cohort_2 == 1 | 
+                                   generator_closure_official_cohort_2 == 1 | 
+                                   adjacent_closure_official_cohort_2 == 1) |
+                                   unemployment_official_msa_cohort_2 == 1, 
+                                   1, 0))
+
+data <- data %>%
+  mutate(ec_ind_official_cohort_3 = ifelse((coal_mine_closure_official_cohort_3 == 1 | 
+                                   generator_closure_official_cohort_3 == 1 | 
+                                   adjacent_closure_official_cohort_3 == 1) |
+                                   unemployment_official_msa_cohort_3 == 1, 
+                                   1, 0))
+
+data$ec_ind_official <- ifelse(data$ec_ind_official_cohort_1 == 1 | data$ec_ind_official_cohort_2 == 1 | data$ec_ind_official_cohort_3 == 1, 1, 0)
+```
+
+## For weights we add variables which determine the likelihood of investment and employment
+
+### Surface Area
+
+```{r}
+## Land Surface Area
+data <- st_as_sf(data)
+data$area <- st_area(data)/1000
+```
+
+### Demographic variables
+
+```{r}
+population <- read.csv("Data/raw data/DECENNIALDP2020.DP1_2024-04-08T040530/DECENNIALDP2020.DP1-Data.csv")
+population <- population[-1, ]
+population <- subset(population, select = c("GEO_ID", "NAME", "DP1_0001C"))
+population <- population %>%
+  rename("total_population_2020" = "DP1_0001C")
+population$census_tract_id <- sub(".*US", "", population$GEO_ID)
+population <- population %>%
+  select(-c("GEO_ID", "NAME"))
+
+population$total_population_2020 <- as.numeric(population$total_population_2020)
+
+# Merge the demographics with the complete dataset
+data <- left_join(data, population, by = "census_tract_id")
+
+rm(population)
+```
+
+### Energy Generating Potential
+
+```{r}
+# Read in and prepare the energy generating potential dataset
+energy <- read.csv("Data/raw data/66600e58b2ec97558133d632_results.csv")
+fips <- read_excel("Data/raw data/usa_adm2_geoquery_fips.xlsx")
+energy <- left_join(energy, fips, by = "shapeID")
+energy <- energy %>%
+  select("globalsolaratlas_pvout.none.mean", "globalsolaratlas_pvout.none.max", "globalsolaratlas_pvout.none.min", "globalwindatlas_windspeed.none.mean", "globalwindatlas_windspeed.none.max", "globalwindatlas_windspeed.none.min", "globalwindatlas_powerdensity.none.mean", "globalwindatlas_powerdensity.none.max", "globalwindatlas_powerdensity.none.min", "GEOID") %>%
+  rename("mean_solar_potential_county_2019" = "globalsolaratlas_pvout.none.mean", "max_solar_potential_county_2019" = "globalsolaratlas_pvout.none.max", "min_solar_potential_county_2019" = "globalsolaratlas_pvout.none.min", "mean_wind_potential_county_2019" = "globalwindatlas_windspeed.none.mean", "max_wind_potential_county_2019" = "globalwindatlas_windspeed.none.max", "min_wind_potential_county_2019" = "globalwindatlas_windspeed.none.min", "mean_wind_density_potential_county_2019" = "globalwindatlas_powerdensity.none.mean", "max_wind_density_potential_county_2019" = "globalwindatlas_powerdensity.none.max", "min_wind_density_potential_county_2019" = "globalwindatlas_powerdensity.none.min", "county_id" = "GEOID")
+energy$county_id <- str_pad(energy$county_id, 5, pad = "0")
+
+data <- left_join(data, energy, by = "county_id")
+```
+
+### Educational attainment
+
+```{r}
+education <- read_excel("Data/raw data/Educational Attainment 2018-2022_-7235352158010358632.xlsx")
+
+education <- education %>%
+  select("GEOID", "Population 25 years and over - 9th to 12th grade, no diploma (%)", "Population 25 years and over - High school graduate (includes equivalency) (%)", "Population 25 years and over - Associate's degree (%)", "Population 25 years and over - Bachelor's degree or higher (%)") %>%
+  rename("county_id" = "GEOID", "percentage_no_high_school_county_18_22" = "Population 25 years and over - 9th to 12th grade, no diploma (%)", "percentage_high_school_county_18_22" = "Population 25 years and over - High school graduate (includes equivalency) (%)", "percentage_college_county_18_22" = "Population 25 years and over - Associate's degree (%)", "percentage_bachelor_county_18_22" = "Population 25 years and over - Bachelor's degree or higher (%)")
+
+# Merge the datasets
+data <- left_join(data, education, by = "county_id")
+
+rm(education)
+```
+
+### Industry GDP
+
+```{r}
+gdp <- read.csv("Data/raw data/CAGDP9__ALL_AREAS_2017_2022.csv")
+
+gdp <- gdp %>%
+  rename("Industry" = "Description") %>%
+  rename_with(~ str_remove(., "^X"), starts_with("X20")) %>%  # strip the X prefix from year columns
+  select("GeoFIPS", "Industry", "2018", "2019", "2020", "2021", "2022") %>%
+  pivot_longer(cols = starts_with("20"), names_to = "year", values_to = "Value")
+
+gdp$Industry <- str_trim(gdp$Industry)
+
+gdp <- gdp %>%
+  filter(Industry %in% c("All industry total", "Government and government enterprises", 
+                          "Natural resources and mining", "Trade", 
+                          "Transportation and utilities", "Manufacturing and information")) %>%
+  mutate(
+    Industry = recode(Industry,
+      "Trade"                                  = "trade",
+      "Transportation and utilities"           = "transportation_utilities",
+      "Government and government enterprises"  = "government",
+      "All industry total"                     = "all_industry_total",
+      "Manufacturing and information"          = "manufacturing_information",
+      "Natural resources and mining"           = "natural_resources_mining"
+    ),
+    col_name = paste0(Industry, "_gdp_county_", year)
+  ) %>%
+  select(-Industry, -year) %>%
+  pivot_wider(names_from = col_name, values_from = Value)
+
+gdp <- gdp %>%
+  rename("county_id" = "GeoFIPS")
+
+gdp$county_id <- str_trim(gdp$county_id)
+
+# Convert all GDP columns to numeric
+gdp <- gdp %>%
+  mutate(across(-county_id, ~ as.numeric(str_trim(.))))
+
+# Add to the complete dataset
+data <- left_join(data, gdp, by = "county_id")
+rm(gdp)
+```
+
+## Include generators of 2022, Q2
+
+```{r}
+# Add the census tracts
+census_tracts <- sf::st_read("Data/raw data/tlgdb_2020_a_us_substategeo.gdb", layer = "Census_Tract")
+
+# Read generator data
+generators <- read_excel("Data/raw data/eia_monthly_data/april_generator2022.xlsx") %>%
+  setNames(.[2, ]) %>%        # Set first row as column names
+  slice(-1) %>% 
+  slice(-1) %>% 
+  filter(!is.na(Latitude), !is.na(Longitude)) %>%  # Filter rows with valid Latitude and Longitude
+  st_as_sf(coords = c("Longitude", "Latitude"), crs = 4326) %>%
+  st_transform(crs = st_crs(census_tracts)) %>%
+  filter(Sector == "Electric Utility") %>%
+  filter(Status == "(OP) Operating")
+
+# Find generators within census tracts and assign corresponding row numbers
+generators$census_tract_row_number <- st_within(generators, census_tracts) %>% as.numeric()
+
+# Process generator data: summarize capacities by technology and reshape
+names(generators) <- gsub("^\\s+|\\s+$", "", names(generators))
+generators <- generators %>%
+  st_drop_geometry() %>%
+  select(nameplate_capacity = `Net Summer Capacity (MW)`, Technology, census_tract_row_number) %>%
+  mutate(nameplate_capacity = as.numeric(nameplate_capacity)) %>%
+  group_by(census_tract_row_number, Technology) %>%
+  summarize(nameplate_capacity = sum(nameplate_capacity, na.rm = TRUE), .groups = "drop") %>%
+  pivot_wider(names_from = Technology, values_from = nameplate_capacity, values_fill = 0) %>%
+  mutate(
+    total_MW_2022_Q2 = rowSums(select(., -c(census_tract_row_number)), na.rm = TRUE),
+    hydro_MW_2022_Q2 = `Conventional Hydroelectric` + `Hydroelectric Pumped Storage`,
+    natural_gas_MW_2022_Q2 = `Natural Gas Fired Combined Cycle` + `Natural Gas Steam Turbine` +
+                     `Natural Gas Fired Combustion Turbine` + `Natural Gas Internal Combustion Engine` + `Natural Gas with Compressed Air Storage`,
+    coal_MW_2022_Q2 = `Conventional Steam Coal` + `Coal Integrated Gasification Combined Cycle`,
+    other_fossil_MW_2022_Q2 = `Petroleum Liquids` + `Landfill Gas` + `Petroleum Coke`,
+    solar_MW_2022_Q2 = `Solar Photovoltaic`,
+    onshore_wind_MW_2022_Q2 = `Onshore Wind Turbine`,
+    nuclear_MW_2022_Q2 = Nuclear
+  ) %>%
+  select(census_tract_row_number, total_MW_2022_Q2, hydro_MW_2022_Q2, natural_gas_MW_2022_Q2, coal_MW_2022_Q2, other_fossil_MW_2022_Q2, solar_MW_2022_Q2, onshore_wind_MW_2022_Q2, nuclear_MW_2022_Q2)
+
+# Add census tract ID to generators
+generators <- generators %>%
+  mutate(census_tract_id = census_tracts$GEOID[census_tract_row_number]) %>%
+  select(-census_tract_row_number)
+
+# Merge final data with generators on census tract ID, year, and quarter
+data <- left_join(data, generators, by = "census_tract_id")
+```
+
+### rural urban continuum code and urban influence code
+
+```{r}
+poverty <- read.csv("Data/raw data/Poverty2023.csv")
+poverty <- poverty %>%
+  filter(Attribute %in% c("Rural_Urban_Continuum_Code_2013", "Urban_Influence_Code_2013")) %>%
+  pivot_wider(id_cols = FIPS_Code, names_from = Attribute, values_from = Value) %>%
+  rename("county_id" = "FIPS_Code", "rural_urban_continuum_code_2013" = "Rural_Urban_Continuum_Code_2013", "urban_influence_code_2013" = "Urban_Influence_Code_2013")
+poverty$county_id <- str_pad(poverty$county_id, 5, pad = "0")
+
+# Merge the datasets
+data <- left_join(data, poverty, by = "county_id")
+
+rm(poverty)
+```
+
+### Unemployment
+
+```{r}
+unemployment <- read.csv("Data/raw data/Unemployment2023.csv")
+unemployment <- unemployment %>%
+  filter(Attribute %in% c("Unemployment_rate_2022", "Unemployment_rate_2021", "Unemployment_rate_2020", "Unemployment_rate_2019", "Unemployment_rate_2018")) %>%
+  pivot_wider(id_cols = FIPS_Code, names_from = Attribute, values_from = Value) %>%
+  rename("county_id" = "FIPS_Code", "unemployment_rate_2022" = "Unemployment_rate_2022", "unemployment_rate_2021" = "Unemployment_rate_2021", "unemployment_rate_2020" = "Unemployment_rate_2020", "unemployment_rate_2019" = "Unemployment_rate_2019", "unemployment_rate_2018" = "Unemployment_rate_2018")
+unemployment$county_id <- str_pad(unemployment$county_id, 5, pad = "0")
+
+# Merge unemployment to the complete dataset
+data <- left_join(data, unemployment, by = c("county_id"))
+
+rm(unemployment)
+```
+
+## Change some variables 
+
+```{r}
+data$area <- as.numeric(data$area)
+data$solar_MW_2022_Q2 <- ifelse(is.na(data$solar_MW_2022_Q2), 0, data$solar_MW_2022_Q2)
+data$onshore_wind_MW_2022_Q2 <- ifelse(is.na(data$onshore_wind_MW_2022_Q2), 0, data$onshore_wind_MW_2022_Q2)
+data$nuclear_MW_2022_Q2 <- ifelse(is.na(data$nuclear_MW_2022_Q2), 0, data$nuclear_MW_2022_Q2)
+data$natural_gas_MW_2022_Q2 <- ifelse(is.na(data$natural_gas_MW_2022_Q2), 0, data$natural_gas_MW_2022_Q2)
+data$total_MW_2022_Q2 <- ifelse(is.na(data$total_MW_2022_Q2), 0, data$total_MW_2022_Q2)
+data$hydro_MW_2022_Q2 <- ifelse(is.na(data$hydro_MW_2022_Q2), 0, data$hydro_MW_2022_Q2)
+data$coal_MW_2022_Q2 <- ifelse(is.na(data$coal_MW_2022_Q2), 0, data$coal_MW_2022_Q2)
+data$other_fossil_MW_2022_Q2 <- ifelse(is.na(data$other_fossil_MW_2022_Q2), 0, data$other_fossil_MW_2022_Q2)
+# GDP variables - replace all NAs with 0 across all years
+data <- data %>%
+  mutate(across(
+    starts_with(c("government_gdp_county_",
+                  "natural_resources_mining_gdp_county_",
+                  "trade_gdp_county_",
+                  "transportation_utilities_gdp_county_",
+                  "manufacturing_information_gdp_county_",
+                  "all_industry_total_gdp_county_")),
+    ~ ifelse(is.na(.), 0, .)
+  ))
+
+data_census_tract <- data %>%
+  st_drop_geometry() %>%
+  select("census_tract_id", "state_id", "ec_ind_official", "area", "total_population_2020", 
+         "mean_solar_potential_county_2019", "max_solar_potential_county_2019", 
+         "min_solar_potential_county_2019", "mean_wind_potential_county_2019", 
+         "max_wind_potential_county_2019", "min_wind_potential_county_2019", 
+         "mean_wind_density_potential_county_2019", "max_wind_density_potential_county_2019", 
+         "min_wind_density_potential_county_2019", "percentage_no_high_school_county_18_22", 
+         "percentage_high_school_county_18_22", "percentage_college_county_18_22", 
+         "percentage_bachelor_county_18_22", "urban_influence_code_2013", 
+         "rural_urban_continuum_code_2013",
+         starts_with("all_industry_total_gdp_county_"),
+         starts_with("government_gdp_county_"),
+         starts_with("natural_resources_mining_gdp_county_"),
+         starts_with("trade_gdp_county_"),
+         starts_with("transportation_utilities_gdp_county_"),
+         starts_with("manufacturing_information_gdp_county_"),
+         "total_MW_2022_Q2", "hydro_MW_2022_Q2", "natural_gas_MW_2022_Q2", "coal_MW_2022_Q2", 
+         "other_fossil_MW_2022_Q2", "solar_MW_2022_Q2", "onshore_wind_MW_2022_Q2", 
+         "nuclear_MW_2022_Q2", 
+         starts_with("unemployment_rate_")) %>%
+  ungroup() %>%
+  drop_na(mean_solar_potential_county_2019, max_solar_potential_county_2019, 
+          min_solar_potential_county_2019, mean_wind_potential_county_2019,
+          max_wind_potential_county_2019, min_wind_potential_county_2019, 
+          mean_wind_density_potential_county_2019, max_wind_density_potential_county_2019, 
+          min_wind_density_potential_county_2019, percentage_no_high_school_county_18_22,
+          percentage_high_school_county_18_22, percentage_college_county_18_22, 
+          percentage_bachelor_county_18_22, urban_influence_code_2013,
+          rural_urban_continuum_code_2013, all_industry_total_gdp_county_2022, 
+          unemployment_rate_2022, unemployment_rate_2021, unemployment_rate_2020, 
+          unemployment_rate_2019, unemployment_rate_2018) %>%
+  filter(if_all(starts_with(c("all_industry_total_gdp_county_",
+                               "government_gdp_county_",
+                               "natural_resources_mining_gdp_county_",
+                               "trade_gdp_county_",
+                               "transportation_utilities_gdp_county_",
+                               "manufacturing_information_gdp_county_")), 
+                ~ !is.na(.)))
+
+data_county <- data %>%
+  st_drop_geometry() %>%
+  select("county_id", "state_id", "ec_ind_official", "area", "total_population_2020", 
+         "mean_solar_potential_county_2019", "max_solar_potential_county_2019", 
+         "min_solar_potential_county_2019", "mean_wind_potential_county_2019", 
+         "max_wind_potential_county_2019", "min_wind_potential_county_2019", 
+         "mean_wind_density_potential_county_2019", "max_wind_density_potential_county_2019", 
+         "min_wind_density_potential_county_2019", "percentage_no_high_school_county_18_22", 
+         "percentage_high_school_county_18_22", "percentage_college_county_18_22", 
+         "percentage_bachelor_county_18_22", "urban_influence_code_2013", 
+         "rural_urban_continuum_code_2013",
+         starts_with("unemployment_rate_"),
+         starts_with("all_industry_total_gdp_county_"),
+         starts_with("government_gdp_county_"),
+         starts_with("natural_resources_mining_gdp_county_"),
+         starts_with("trade_gdp_county_"),
+         starts_with("transportation_utilities_gdp_county_"),
+         starts_with("manufacturing_information_gdp_county_"),
+         "total_MW_2022_Q2", "hydro_MW_2022_Q2", "natural_gas_MW_2022_Q2", "coal_MW_2022_Q2", 
+         "other_fossil_MW_2022_Q2", "solar_MW_2022_Q2", "onshore_wind_MW_2022_Q2", 
+         "nuclear_MW_2022_Q2") %>%
+  group_by(county_id) %>%
+  summarise(
+    state_id = first(state_id),
+    ec_ind_official = max(ec_ind_official, na.rm = TRUE),
+    mean_solar_potential_county_2019 = first(mean_solar_potential_county_2019),
+    max_solar_potential_county_2019 = first(max_solar_potential_county_2019),
+    min_solar_potential_county_2019 = first(min_solar_potential_county_2019),
+    mean_wind_potential_county_2019 = first(mean_wind_potential_county_2019),
+    max_wind_potential_county_2019 = first(max_wind_potential_county_2019),
+    min_wind_potential_county_2019 = first(min_wind_potential_county_2019),
+    mean_wind_density_potential_county_2019 = first(mean_wind_density_potential_county_2019),
+    max_wind_density_potential_county_2019 = first(max_wind_density_potential_county_2019),
+    min_wind_density_potential_county_2019 = first(min_wind_density_potential_county_2019),
+    percentage_no_high_school_county_18_22 = first(percentage_no_high_school_county_18_22),
+    percentage_high_school_county_18_22 = first(percentage_high_school_county_18_22),
+    percentage_college_county_18_22 = first(percentage_college_county_18_22),
+    percentage_bachelor_county_18_22 = first(percentage_bachelor_county_18_22),
+    urban_influence_code_2013 = first(urban_influence_code_2013),
+    rural_urban_continuum_code_2013 = first(rural_urban_continuum_code_2013),
+    across(starts_with(c("all_industry_total_gdp_county_",
+                          "government_gdp_county_",
+                          "natural_resources_mining_gdp_county_",
+                          "trade_gdp_county_",
+                          "transportation_utilities_gdp_county_",
+                          "manufacturing_information_gdp_county_",
+                         "unemployment_rate_")),
+           first),
+    area = sum(area, na.rm = TRUE),
+    total_population_2020 = sum(total_population_2020, na.rm = TRUE),
+    total_MW_2022_Q2 = sum(total_MW_2022_Q2, na.rm = TRUE),
+    hydro_MW_2022_Q2 = sum(hydro_MW_2022_Q2, na.rm = TRUE),
+    natural_gas_MW_2022_Q2 = sum(natural_gas_MW_2022_Q2, na.rm = TRUE),
+    coal_MW_2022_Q2 = sum(coal_MW_2022_Q2, na.rm = TRUE),
+    other_fossil_MW_2022_Q2 = sum(other_fossil_MW_2022_Q2, na.rm = TRUE),
+    solar_MW_2022_Q2 = sum(solar_MW_2022_Q2, na.rm = TRUE),
+    onshore_wind_MW_2022_Q2 = sum(onshore_wind_MW_2022_Q2, na.rm = TRUE),
+    nuclear_MW_2022_Q2 = sum(nuclear_MW_2022_Q2, na.rm = TRUE)
+  ) %>%
+  ungroup() %>%
+  drop_na(mean_solar_potential_county_2019, max_solar_potential_county_2019, 
+          min_solar_potential_county_2019, mean_wind_potential_county_2019,
+          max_wind_potential_county_2019, min_wind_potential_county_2019, 
+          mean_wind_density_potential_county_2019, max_wind_density_potential_county_2019, 
+          min_wind_density_potential_county_2019, percentage_no_high_school_county_18_22,
+          percentage_high_school_county_18_22, percentage_college_county_18_22, 
+          percentage_bachelor_county_18_22, urban_influence_code_2013,
+          rural_urban_continuum_code_2013, all_industry_total_gdp_county_2022) %>%
+  filter(if_all(starts_with(c("all_industry_total_gdp_county_",
+                               "government_gdp_county_",
+                               "natural_resources_mining_gdp_county_",
+                               "trade_gdp_county_",
+                               "transportation_utilities_gdp_county_",
+                               "manufacturing_information_gdp_county_",
+                              "unemployment_rate_")), 
+                ~ !is.na(.)))
+```
+
+## Matching on LASSO selected variables
+
+# Create matches for investment
+
+```{r}
+# All Variables
+matching_vars <- c(
+   "all_industry_total_gdp_county_2022", "government_gdp_county_2022", "natural_resources_mining_gdp_county_2022", "trade_gdp_county_2022", "transportation_utilities_gdp_county_2022", "manufacturing_information_gdp_county_2022", "unemployment_rate_2022")
+
+matching_vars <- c("area", "total_population_2020", "mean_solar_potential_county_2019", "max_solar_potential_county_2019", "min_solar_potential_county_2019", "mean_wind_potential_county_2019", "max_wind_potential_county_2019", "min_wind_potential_county_2019", "mean_wind_density_potential_county_2019", "max_wind_density_potential_county_2019", "min_wind_density_potential_county_2019", "percentage_no_high_school_county_18_22", "percentage_high_school_county_18_22", "percentage_college_county_18_22", "percentage_bachelor_county_18_22", "urban_influence_code_2013", "rural_urban_continuum_code_2013", "unemployment_rate_2018", "unemployment_rate_2019", "unemployment_rate_2020", "unemployment_rate_2021", "unemployment_rate_2022", "all_industry_total_gdp_county_2018", "all_industry_total_gdp_county_2019", "all_industry_total_gdp_county_2020", "all_industry_total_gdp_county_2021", "all_industry_total_gdp_county_2022", "government_gdp_county_2018", "government_gdp_county_2019", "government_gdp_county_2020", "government_gdp_county_2021", "government_gdp_county_2022", "natural_resources_mining_gdp_county_2018", "natural_resources_mining_gdp_county_2019", "natural_resources_mining_gdp_county_2020", "natural_resources_mining_gdp_county_2021", "natural_resources_mining_gdp_county_2022",  "trade_gdp_county_2018", "trade_gdp_county_2019", "trade_gdp_county_2020", "trade_gdp_county_2021", "trade_gdp_county_2022", "transportation_utilities_gdp_county_2018", "transportation_utilities_gdp_county_2019", "transportation_utilities_gdp_county_2020",  "transportation_utilities_gdp_county_2021", "transportation_utilities_gdp_county_2022", "manufacturing_information_gdp_county_2018", "manufacturing_information_gdp_county_2019", "manufacturing_information_gdp_county_2020", "manufacturing_information_gdp_county_2021", "manufacturing_information_gdp_county_2022", "total_MW_2022_Q2", "hydro_MW_2022_Q2", "natural_gas_MW_2022_Q2", "coal_MW_2022_Q2", "other_fossil_MW_2022_Q2", "solar_MW_2022_Q2", "onshore_wind_MW_2022_Q2", "nuclear_MW_2022_Q2")
+
+# Step 2: Run LASSO for variable selection
+# Prepare matrix of predictors
+X <- data_census_tract %>%
+  select(all_of(matching_vars)) %>%
+  as.matrix()
+
+# Remove rows with any NAs
+complete_rows <- complete.cases(X, data_census_tract$ec_ind_official)
+X <- X[complete_rows, ]
+y <- data_census_tract$ec_ind_official[complete_rows]
+
+# Standardize predictors for LASSO
+X_scaled <- scale(X)
+
+# Run LASSO with cross-validation
+set.seed(123)  # For reproducibility
+cv_lasso <- cv.glmnet(X_scaled, y, 
+                       family = "binomial",
+                       alpha = 1,  # 1 = LASSO, 0 = Ridge
+                       nfolds = 10)
+
+# Plot cross-validation results
+plot(cv_lasso)
+
+# Step 3: Select variables based on LASSO
+lasso_coef <- coef(cv_lasso, s = "lambda.1se")
+
+# Extract non-zero coefficients (selected variables)
+selected_vars <- rownames(lasso_coef)[which(lasso_coef != 0)]
+selected_vars <- selected_vars[selected_vars != "(Intercept)"]  # Remove intercept
+
+print(paste("LASSO selected", length(selected_vars), "variables:"))
+print(selected_vars)
+
+# Create a coefficient plot
+lasso_coef_df <- as.data.frame(as.matrix(lasso_coef))
+lasso_coef_df$variable <- rownames(lasso_coef_df)
+names(lasso_coef_df)[1] <- "coefficient"
+
+lasso_coef_df %>%
+  mutate(variable = recode(variable,
+                           "area" = "Area",
+                           "total_population_2020" = "Total Population",
+                           "mean_solar_potential_county_2019" = "Mean Solar Energy Generating Potential",
+                           "max_solar_potential_county_2019" = "Max Solar Energy Generating Potential",
+                           "min_solar_potential_county_2019" = "Min Solar Energy Generating Potential",
+                           "mean_wind_potential_county_2019" = "Mean Wind Energy Generating Potential",
+                           "max_wind_potential_county_2019" = "Max Wind Energy Generating Potential",
+                           "min_wind_potential_county_2019" = "Min Wind Energy Generating Potential",
+                           "mean_wind_density_potential_county_2019" = "Mean Wind Energy Density Potential",
+                           "max_wind_density_potential_county_2019" = "Max Wind Energy Density Potential",
+                           "min_wind_density_potential_county_2019" = "Min Wind Energy Density Potential",
+                           "percentage_no_high_school_county_18_22" = "Education: No High School",
+                           "percentage_high_school_county_18_22" = "Education: High School Graduates",
+                           "percentage_college_county_18_22" = "Education: College Graduates",
+                           "percentage_bachelor_county_18_22" = "Education: Bachelor Graduates",
+                           "urban_influence_code_2013" = "Urban Influence Code",
+                           "rural_urban_continuum_code_2013" = "Rural Urban Continuum Code",
+                           "total_MW_2022_Q2" = "Total Energy Generation",
+                           "hydro_MW_2022_Q2" = "Hydro Energy Generation",
+                           "natural_gas_MW_2022_Q2" = "Natural Gas Energy Generation",
+                           "coal_MW_2022_Q2" = "Coal Energy Generation",
+                           "other_fossil_MW_2022_Q2" = "Other Fossil Energy Generation",
+                           "solar_MW_2022_Q2" = "Solar Energy Generation",
+                           "onshore_wind_MW_2022_Q2" = "Onshore Wind Energy Generation",
+                           "nuclear_MW_2022_Q2" = "Nuclear Energy Generation",
+                           "unemployment_rate_2022" = "Unemployment Rate 2022",
+                           "unemployment_rate_2021" = "Unemployment Rate 2021",
+                           "unemployment_rate_2020" = "Unemployment Rate 2020",
+                           "unemployment_rate_2019" = "Unemployment Rate 2019",
+                           "unemployment_rate_2018" = "Unemployment Rate 2018",
+                           "all_industry_total_gdp_county_2018" = "Total GDP 2018", 
+                           "all_industry_total_gdp_county_2019" = "Total GDP 2019", 
+                           "all_industry_total_gdp_county_2020" = "Total GDP 2020", 
+                           "all_industry_total_gdp_county_2021" = "Total GDP 2021", 
+                           "all_industry_total_gdp_county_2022" = "Total GDP 2022", 
+                           "government_gdp_county_2018" = "Government GDP 2018",
+                           "government_gdp_county_2019" = "Government GDP 2019",
+                           "government_gdp_county_2020" = "Government GDP 2020",
+                           "government_gdp_county_2021" = "Government GDP 2021",
+                           "government_gdp_county_2022" = "Government GDP 2022",
+                           "natural_resources_mining_gdp_county_2018" = "Natural Resources Mining GDP 2018",
+                           "natural_resources_mining_gdp_county_2019" = "Natural Resources Mining GDP 2019",
+                           "natural_resources_mining_gdp_county_2020" = "Natural Resources Mining GDP 2020",
+                           "natural_resources_mining_gdp_county_2021" = "Natural Resources Mining GDP 2021",
+                           "natural_resources_mining_gdp_county_2022" = "Natural Resources Mining GDP 2022",
+                           "trade_gdp_county_2018" = "Trade GDP 2018", 
+                           "trade_gdp_county_2019" = "Trade GDP 2019", 
+                           "trade_gdp_county_2020" = "Trade GDP 2020", 
+                           "trade_gdp_county_2021" = "Trade GDP 2021", 
+                           "trade_gdp_county_2022" = "Trade GDP 2022", 
+                           "transportation_utilities_gdp_county_2018" = "Transportation & Utilities GDP 2018",
+                           "transportation_utilities_gdp_county_2019" = "Transportation & Utilities GDP 2019",
+                           "transportation_utilities_gdp_county_2020" = "Transportation & Utilities GDP 2020", 
+                           "transportation_utilities_gdp_county_2021" = "Transportation & Utilities GDP 2021", 
+                           "transportation_utilities_gdp_county_2022" = "Transportation & Utilities GDP 2022",
+                           "manufacturing_information_gdp_county_2018" = "Manufacturing & Information GDP 2018", 
+                           "manufacturing_information_gdp_county_2019" = "Manufacturing & Information GDP 2019", 
+                           "manufacturing_information_gdp_county_2020" = "Manufacturing & Information GDP 2020", 
+                           "manufacturing_information_gdp_county_2021" = "Manufacturing & Information GDP 2021", 
+                           "manufacturing_information_gdp_county_2022" = "Manufacturing & Information GDP 2022")) %>%
+  filter(variable != "(Intercept)" & coefficient != 0) %>%
+  ggplot(aes(x = reorder(variable, abs(coefficient)), y = coefficient)) +
+  geom_bar(stat = "identity", fill = "steelblue") +
+  coord_flip() +
+  labs(x = "Variable", y = "LASSO Coefficient") +
+  theme_minimal()
+ggsave("Output/lasso_coefficients_investment_all_variables.png", width = 8, height = 6)
+
+# Step 4: Alternative - show coefficients across lambda values
+lasso_full <- glmnet(X_scaled, y, family = "binomial", alpha = 1)
+plot(lasso_full, xvar = "lambda", label = TRUE)
+
+# Step 5: Run matching with LASSO-selected variables
+# Create formula with selected variables
+match_formula <- as.formula(paste("ec_ind_official ~", 
+                                  paste(selected_vars, collapse = " + ")))
+
+# Perform matching
+match_out <- matchit(
+  match_formula,
+  data = data_census_tract[complete_rows, ],  # Use same subset as LASSO
+  method = "nearest",
+  distance = "logit",
+  replace = FALSE,
+  caliper = 0.1,
+  ratio = 1
+)
+
+love_plot <- love.plot(
+  match_out,
+  thresholds = c(m = 0.1),
+  abs = TRUE,
+  colors = c("red", "blue"),
+  shapes = c(19, 17),
+  title = NULL,
+  # Provide a named vector of old names -> new labels
+  var.names = c(
+                           "area" = "Area",
+                           "total_population_2020" = "Total Population",
+                           "mean_solar_potential_county_2019" = "Mean Solar Energy Generating Potential",
+                           "max_solar_potential_county_2019" = "Max Solar Energy Generating Potential",
+                           "min_solar_potential_county_2019" = "Min Solar Energy Generating Potential",
+                           "mean_wind_potential_county_2019" = "Mean Wind Energy Generating Potential",
+                           "max_wind_potential_county_2019" = "Max Wind Energy Generating Potential",
+                           "min_wind_potential_county_2019" = "Min Wind Energy Generating Potential",
+                           "mean_wind_density_potential_county_2019" = "Mean Wind Energy Density Potential",
+                           "max_wind_density_potential_county_2019" = "Max Wind Energy Density Potential",
+                           "min_wind_density_potential_county_2019" = "Min Wind Energy Density Potential",
+                           "percentage_no_high_school_county_18_22" = "Education: No High School",
+                           "percentage_high_school_county_18_22" = "Education: High School Graduates",
+                           "percentage_college_county_18_22" = "Education: College Graduates",
+                           "percentage_bachelor_county_18_22" = "Education: Bachelor Graduates",
+                           "urban_influence_code_2013" = "Urban Influence Code",
+                           "rural_urban_continuum_code_2013" = "Rural Urban Continuum Code",
+                           "total_MW_2022_Q2" = "Total Energy Generation",
+                           "hydro_MW_2022_Q2" = "Hydro Energy Generation",
+                           "natural_gas_MW_2022_Q2" = "Natural Gas Energy Generation",
+                           "coal_MW_2022_Q2" = "Coal Energy Generation",
+                           "other_fossil_MW_2022_Q2" = "Other Fossil Energy Generation",
+                           "solar_MW_2022_Q2" = "Solar Energy Generation",
+                           "onshore_wind_MW_2022_Q2" = "Onshore Wind Energy Generation",
+                           "nuclear_MW_2022_Q2" = "Nuclear Energy Generation",
+                           "unemployment_rate_2022" = "Unemployment Rate 2022",
+                           "unemployment_rate_2021" = "Unemployment Rate 2021",
+                           "unemployment_rate_2020" = "Unemployment Rate 2020",
+                           "unemployment_rate_2019" = "Unemployment Rate 2019",
+                           "unemployment_rate_2018" = "Unemployment Rate 2018",
+                           "all_industry_total_gdp_county_2018" = "Total GDP 2018", 
+                           "all_industry_total_gdp_county_2019" = "Total GDP 2019", 
+                           "all_industry_total_gdp_county_2020" = "Total GDP 2020", 
+                           "all_industry_total_gdp_county_2021" = "Total GDP 2021", 
+                           "all_industry_total_gdp_county_2022" = "Total GDP 2022", 
+                           "government_gdp_county_2018" = "Government GDP 2018",
+                           "government_gdp_county_2019" = "Government GDP 2019",
+                           "government_gdp_county_2020" = "Government GDP 2020",
+                           "government_gdp_county_2021" = "Government GDP 2021",
+                           "government_gdp_county_2022" = "Government GDP 2022",
+                           "natural_resources_mining_gdp_county_2018" = "Natural Resources Mining GDP 2018",
+                           "natural_resources_mining_gdp_county_2019" = "Natural Resources Mining GDP 2019",
+                           "natural_resources_mining_gdp_county_2020" = "Natural Resources Mining GDP 2020",
+                           "natural_resources_mining_gdp_county_2021" = "Natural Resources Mining GDP 2021",
+                           "natural_resources_mining_gdp_county_2022" = "Natural Resources Mining GDP 2022",
+                           "trade_gdp_county_2018" = "Trade GDP 2018", 
+                           "trade_gdp_county_2019" = "Trade GDP 2019", 
+                           "trade_gdp_county_2020" = "Trade GDP 2020", 
+                           "trade_gdp_county_2021" = "Trade GDP 2021", 
+                           "trade_gdp_county_2022" = "Trade GDP 2022", 
+                           "transportation_utilities_gdp_county_2018" = "Transportation & Utilities GDP 2018",
+                           "transportation_utilities_gdp_county_2019" = "Transportation & Utilities GDP 2019",
+                           "transportation_utilities_gdp_county_2020" = "Transportation & Utilities GDP 2020", 
+                           "transportation_utilities_gdp_county_2021" = "Transportation & Utilities GDP 2021", 
+                           "transportation_utilities_gdp_county_2022" = "Transportation & Utilities GDP 2022",
+                           "manufacturing_information_gdp_county_2018" = "Manufacturing & Information GDP 2018", 
+                           "manufacturing_information_gdp_county_2019" = "Manufacturing & Information GDP 2019", 
+                           "manufacturing_information_gdp_county_2020" = "Manufacturing & Information GDP 2020", 
+                           "manufacturing_information_gdp_county_2021" = "Manufacturing & Information GDP 2021", 
+                           "manufacturing_information_gdp_county_2022" = "Manufacturing & Information GDP 2022"
+  )
+) +
+  theme_minimal() + 
+  labs(
+    x = "Absolute Standardized Mean Difference",
+    y = NULL
+  ) +
+  theme(
+    legend.position = "bottom",
+    legend.title = element_blank(),
+    text = element_text(size = 12)
+  )
+ggsave("Output/love_plot_matching_investment_LASSO_all_variables.pdf", love_plot, width = 8, height = 8)
+
+# Make a plot of the distribution of propensity scores
+matched_data <- match.data(match_out)
+
+# Create density plot
+ps_plot <- ggplot(matched_data, aes(x = distance, fill = factor(ec_ind_official))) +
+  geom_density(alpha = 0.5) +
+  scale_fill_manual(values = c("#0072B2", "#D55E00"),
+                    labels = c("Non-EC", "EC")) +
+  labs(x = "Propensity Score", 
+       y = "Density",
+       fill = "Energy Community") +
+  theme_minimal() +
+  theme(legend.position = "bottom",
+        text = element_text(size = 12),
+        panel.grid = element_blank())
+ggsave("Output/ps_density_matching_investment_LASSO_all_variables.pdf", ps_plot, width = 8, height = 5, dpi = 300)
+
+# Calculate sample sizes
+sample_table <- data.frame(
+  Sample = c("Full Sample", 
+             "~~~Energy Community Tracts",
+             "~~~Non-Energy Community Tracts",
+             "",  # Empty row for spacing
+             "Matched Sample",
+             "~~~Energy Community Tracts", 
+             "~~~Non-Energy Community Tracts",
+             "",  # Empty row for spacing
+             "Dropped in Matching",
+             "~~~Energy Community Tracts",
+             "~~~Non-Energy Community Tracts"),
+  N = c(nrow(data_census_tract),
+        sum(data_census_tract$ec_ind_official == 1),
+        sum(data_census_tract$ec_ind_official == 0),
+        "",
+        nrow(matched_data),
+        sum(matched_data$ec_ind_official == 1),
+        sum(matched_data$ec_ind_official == 0),
+        "",
+        nrow(data_census_tract) - nrow(matched_data),
+        sum(data_census_tract$ec_ind_official == 1) - sum(matched_data$ec_ind_official == 1),
+        sum(data_census_tract$ec_ind_official == 0) - sum(matched_data$ec_ind_official == 0))
+)
+
+# Create LaTeX table
+sample_latex <- xtable(sample_table,
+                      caption = "Sample Size: Propensity Score Matching",
+                      label = "tab:sample_size",
+                      align = c("l", "l", "r"))
+
+# Save as .tab file
+print(sample_latex,
+      file = "Output/sample_size_table_investment_LASSO_all_variables.tex",
+      include.rownames = FALSE,
+      booktabs = TRUE,
+      floating = FALSE,
+      sanitize.text.function = function(x) {
+        x <- gsub("~~~", "\\quad ", x, fixed = TRUE)
+        return(x)
+      })
+
+matched_ids <- match.data(match_out) %>%
+  pull("census_tract_id")
+matched_panel <- data_census_tract %>%
+  filter(census_tract_id %in% matched_ids) %>%
+  select(census_tract_id)
+matched_panel$matched_all_variables <- 1
+data_census_tract <- left_join(data_census_tract, matched_panel, by = "census_tract_id")
+data_census_tract$matched_all_variables <- ifelse(is.na(data_census_tract$matched_all_variables), 0, data_census_tract$matched_all_variables)
+
+data_census_tract <- data_census_tract %>%
+  select(census_tract_id, matched_all_variables)
+
+write.csv(data_census_tract, "Data/constructed data/matched_panel_investment_LASSO.csv")
+```
+
+# Create matches for labor demand
+
+```{r}
+# All Variables
+matching_vars <- c("area", "total_population_2020", "mean_solar_potential_county_2019", "max_solar_potential_county_2019", "min_solar_potential_county_2019", "mean_wind_potential_county_2019", "max_wind_potential_county_2019", "min_wind_potential_county_2019", "mean_wind_density_potential_county_2019", "max_wind_density_potential_county_2019", "min_wind_density_potential_county_2019", "percentage_no_high_school_county_18_22", "percentage_high_school_county_18_22", "percentage_college_county_18_22", "percentage_bachelor_county_18_22", "urban_influence_code_2013", "rural_urban_continuum_code_2013", "unemployment_rate_2018", "unemployment_rate_2019", "unemployment_rate_2020", "unemployment_rate_2021", "unemployment_rate_2022", "all_industry_total_gdp_county_2018", "all_industry_total_gdp_county_2019", "all_industry_total_gdp_county_2020", "all_industry_total_gdp_county_2021", "all_industry_total_gdp_county_2022", "government_gdp_county_2018", "government_gdp_county_2019", "government_gdp_county_2020", "government_gdp_county_2021", "government_gdp_county_2022", "natural_resources_mining_gdp_county_2018", "natural_resources_mining_gdp_county_2019", "natural_resources_mining_gdp_county_2020", "natural_resources_mining_gdp_county_2021", "natural_resources_mining_gdp_county_2022",  "trade_gdp_county_2018", "trade_gdp_county_2019", "trade_gdp_county_2020", "trade_gdp_county_2021", "trade_gdp_county_2022", "transportation_utilities_gdp_county_2018", "transportation_utilities_gdp_county_2019", "transportation_utilities_gdp_county_2020",  "transportation_utilities_gdp_county_2021", "transportation_utilities_gdp_county_2022", "manufacturing_information_gdp_county_2018", "manufacturing_information_gdp_county_2019", "manufacturing_information_gdp_county_2020", "manufacturing_information_gdp_county_2021", "manufacturing_information_gdp_county_2022", "total_MW_2022_Q2", "hydro_MW_2022_Q2", "natural_gas_MW_2022_Q2", "coal_MW_2022_Q2", "other_fossil_MW_2022_Q2", "solar_MW_2022_Q2", "onshore_wind_MW_2022_Q2", "nuclear_MW_2022_Q2")
+
+# Step 2: Run LASSO for variable selection
+# Prepare matrix of predictors
+X <- data_county %>%
+  select(all_of(matching_vars)) %>%
+  as.matrix()
+
+# Remove rows with any NAs
+complete_rows <- complete.cases(X, data_county$ec_ind_official)
+X <- X[complete_rows, ]
+y <- data_county$ec_ind_official[complete_rows]
+
+# Standardize predictors for LASSO
+X_scaled <- scale(X)
+
+# Run LASSO with cross-validation
+set.seed(123)  # For reproducibility
+cv_lasso <- cv.glmnet(X_scaled, y, 
+                       family = "binomial",
+                       alpha = 1,  # 1 = LASSO, 0 = Ridge
+                       nfolds = 10)
+
+# Plot cross-validation results
+plot(cv_lasso)
+
+# Step 3: Select variables based on LASSO
+lasso_coef <- coef(cv_lasso, s = "lambda.1se")
+
+# Extract non-zero coefficients (selected variables)
+selected_vars <- rownames(lasso_coef)[which(lasso_coef != 0)]
+selected_vars <- selected_vars[selected_vars != "(Intercept)"]  # Remove intercept
+
+print(paste("LASSO selected", length(selected_vars), "variables:"))
+print(selected_vars)
+
+# Create a coefficient plot
+lasso_coef_df <- as.data.frame(as.matrix(lasso_coef))
+lasso_coef_df$variable <- rownames(lasso_coef_df)
+names(lasso_coef_df)[1] <- "coefficient"
+
+lasso_coef_df %>%
+  mutate(variable = recode(variable,
+                           "area" = "Area",
+                           "total_population_2020" = "Total Population",
+                           "mean_solar_potential_county_2019" = "Mean Solar Energy Generating Potential",
+                           "max_solar_potential_county_2019" = "Max Solar Energy Generating Potential",
+                           "min_solar_potential_county_2019" = "Min Solar Energy Generating Potential",
+                           "mean_wind_potential_county_2019" = "Mean Wind Energy Generating Potential",
+                           "max_wind_potential_county_2019" = "Max Wind Energy Generating Potential",
+                           "min_wind_potential_county_2019" = "Min Wind Energy Generating Potential",
+                           "mean_wind_density_potential_county_2019" = "Mean Wind Energy Density Potential",
+                           "max_wind_density_potential_county_2019" = "Max Wind Energy Density Potential",
+                           "min_wind_density_potential_county_2019" = "Min Wind Energy Density Potential",
+                           "percentage_no_high_school_county_18_22" = "Education: No High School",
+                           "percentage_high_school_county_18_22" = "Education: High School Graduates",
+                           "percentage_college_county_18_22" = "Education: College Graduates",
+                           "percentage_bachelor_county_18_22" = "Education: Bachelor Graduates",
+                           "urban_influence_code_2013" = "Urban Influence Code",
+                           "rural_urban_continuum_code_2013" = "Rural Urban Continuum Code",
+                           "total_MW_2022_Q2" = "Total Energy Generation",
+                           "hydro_MW_2022_Q2" = "Hydro Energy Generation",
+                           "natural_gas_MW_2022_Q2" = "Natural Gas Energy Generation",
+                           "coal_MW_2022_Q2" = "Coal Energy Generation",
+                           "other_fossil_MW_2022_Q2" = "Other Fossil Energy Generation",
+                           "solar_MW_2022_Q2" = "Solar Energy Generation",
+                           "onshore_wind_MW_2022_Q2" = "Onshore Wind Energy Generation",
+                           "nuclear_MW_2022_Q2" = "Nuclear Energy Generation",
+                           "unemployment_rate_2022" = "Unemployment Rate 2022",
+                           "unemployment_rate_2021" = "Unemployment Rate 2021",
+                           "unemployment_rate_2020" = "Unemployment Rate 2020",
+                           "unemployment_rate_2019" = "Unemployment Rate 2019",
+                           "unemployment_rate_2018" = "Unemployment Rate 2018",
+                           "all_industry_total_gdp_county_2018" = "Total GDP 2018", 
+                           "all_industry_total_gdp_county_2019" = "Total GDP 2019", 
+                           "all_industry_total_gdp_county_2020" = "Total GDP 2020", 
+                           "all_industry_total_gdp_county_2021" = "Total GDP 2021", 
+                           "all_industry_total_gdp_county_2022" = "Total GDP 2022", 
+                           "government_gdp_county_2018" = "Government GDP 2018",
+                           "government_gdp_county_2019" = "Government GDP 2019",
+                           "government_gdp_county_2020" = "Government GDP 2020",
+                           "government_gdp_county_2021" = "Government GDP 2021",
+                           "government_gdp_county_2022" = "Government GDP 2022",
+                           "natural_resources_mining_gdp_county_2018" = "Natural Resources Mining GDP 2018",
+                           "natural_resources_mining_gdp_county_2019" = "Natural Resources Mining GDP 2019",
+                           "natural_resources_mining_gdp_county_2020" = "Natural Resources Mining GDP 2020",
+                           "natural_resources_mining_gdp_county_2021" = "Natural Resources Mining GDP 2021",
+                           "natural_resources_mining_gdp_county_2022" = "Natural Resources Mining GDP 2022",
+                           "trade_gdp_county_2018" = "Trade GDP 2018", 
+                           "trade_gdp_county_2019" = "Trade GDP 2019", 
+                           "trade_gdp_county_2020" = "Trade GDP 2020", 
+                           "trade_gdp_county_2021" = "Trade GDP 2021", 
+                           "trade_gdp_county_2022" = "Trade GDP 2022", 
+                           "transportation_utilities_gdp_county_2018" = "Transportation & Utilities GDP 2018",
+                           "transportation_utilities_gdp_county_2019" = "Transportation & Utilities GDP 2019",
+                           "transportation_utilities_gdp_county_2020" = "Transportation & Utilities GDP 2020", 
+                           "transportation_utilities_gdp_county_2021" = "Transportation & Utilities GDP 2021", 
+                           "transportation_utilities_gdp_county_2022" = "Transportation & Utilities GDP 2022",
+                           "manufacturing_information_gdp_county_2018" = "Manufacturing & Information GDP 2018", 
+                           "manufacturing_information_gdp_county_2019" = "Manufacturing & Information GDP 2019", 
+                           "manufacturing_information_gdp_county_2020" = "Manufacturing & Information GDP 2020", 
+                           "manufacturing_information_gdp_county_2021" = "Manufacturing & Information GDP 2021", 
+                           "manufacturing_information_gdp_county_2022" = "Manufacturing & Information GDP 2022")) %>%
+  filter(variable != "(Intercept)" & coefficient != 0) %>%
+  ggplot(aes(x = reorder(variable, abs(coefficient)), y = coefficient)) +
+  geom_bar(stat = "identity", fill = "steelblue") +
+  coord_flip() +
+  labs(x = "Variable", y = "LASSO Coefficient") +
+  theme_minimal()
+ggsave("Output/lasso_coefficients_labor_demand_all_variables.png", width = 8, height = 6)
+
+# Step 4: Alternative - show coefficients across lambda values
+lasso_full <- glmnet(X_scaled, y, family = "binomial", alpha = 1)
+plot(lasso_full, xvar = "lambda", label = TRUE)
+
+# Step 5: Run matching with LASSO-selected variables
+# Create formula with selected variables
+match_formula <- as.formula(paste("ec_ind_official ~", 
+                                  paste(selected_vars, collapse = " + ")))
+
+# Perform matching
+match_out <- matchit(
+  match_formula,
+  data = data_county[complete_rows, ],  # Use same subset as LASSO
+  method = "nearest",
+  distance = "logit",
+  replace = FALSE,
+  caliper = 0.1,
+  ratio = 1
+)
+
+love_plot <- love.plot(
+  match_out,
+  thresholds = c(m = 0.1),
+  abs = TRUE,
+  colors = c("red", "blue"),
+  shapes = c(19, 17),
+  title = NULL,
+  # Provide a named vector of old names -> new labels
+  var.names = c(
+                           "area" = "Area",
+                           "total_population_2020" = "Total Population",
+                           "mean_solar_potential_county_2019" = "Mean Solar Energy Generating Potential",
+                           "max_solar_potential_county_2019" = "Max Solar Energy Generating Potential",
+                           "min_solar_potential_county_2019" = "Min Solar Energy Generating Potential",
+                           "mean_wind_potential_county_2019" = "Mean Wind Energy Generating Potential",
+                           "max_wind_potential_county_2019" = "Max Wind Energy Generating Potential",
+                           "min_wind_potential_county_2019" = "Min Wind Energy Generating Potential",
+                           "mean_wind_density_potential_county_2019" = "Mean Wind Energy Density Potential",
+                           "max_wind_density_potential_county_2019" = "Max Wind Energy Density Potential",
+                           "min_wind_density_potential_county_2019" = "Min Wind Energy Density Potential",
+                           "percentage_no_high_school_county_18_22" = "Education: No High School",
+                           "percentage_high_school_county_18_22" = "Education: High School Graduates",
+                           "percentage_college_county_18_22" = "Education: College Graduates",
+                           "percentage_bachelor_county_18_22" = "Education: Bachelor Graduates",
+                           "urban_influence_code_2013" = "Urban Influence Code",
+                           "rural_urban_continuum_code_2013" = "Rural Urban Continuum Code",
+                           "total_MW_2022_Q2" = "Total Energy Generation",
+                           "hydro_MW_2022_Q2" = "Hydro Energy Generation",
+                           "natural_gas_MW_2022_Q2" = "Natural Gas Energy Generation",
+                           "coal_MW_2022_Q2" = "Coal Energy Generation",
+                           "other_fossil_MW_2022_Q2" = "Other Fossil Energy Generation",
+                           "solar_MW_2022_Q2" = "Solar Energy Generation",
+                           "onshore_wind_MW_2022_Q2" = "Onshore Wind Energy Generation",
+                           "nuclear_MW_2022_Q2" = "Nuclear Energy Generation",
+                           "unemployment_rate_2022" = "Unemployment Rate 2022",
+                           "unemployment_rate_2021" = "Unemployment Rate 2021",
+                           "unemployment_rate_2020" = "Unemployment Rate 2020",
+                           "unemployment_rate_2019" = "Unemployment Rate 2019",
+                           "unemployment_rate_2018" = "Unemployment Rate 2018",
+                           "all_industry_total_gdp_county_2018" = "Total GDP 2018", 
+                           "all_industry_total_gdp_county_2019" = "Total GDP 2019", 
+                           "all_industry_total_gdp_county_2020" = "Total GDP 2020", 
+                           "all_industry_total_gdp_county_2021" = "Total GDP 2021", 
+                           "all_industry_total_gdp_county_2022" = "Total GDP 2022", 
+                           "government_gdp_county_2018" = "Government GDP 2018",
+                           "government_gdp_county_2019" = "Government GDP 2019",
+                           "government_gdp_county_2020" = "Government GDP 2020",
+                           "government_gdp_county_2021" = "Government GDP 2021",
+                           "government_gdp_county_2022" = "Government GDP 2022",
+                           "natural_resources_mining_gdp_county_2018" = "Natural Resources Mining GDP 2018",
+                           "natural_resources_mining_gdp_county_2019" = "Natural Resources Mining GDP 2019",
+                           "natural_resources_mining_gdp_county_2020" = "Natural Resources Mining GDP 2020",
+                           "natural_resources_mining_gdp_county_2021" = "Natural Resources Mining GDP 2021",
+                           "natural_resources_mining_gdp_county_2022" = "Natural Resources Mining GDP 2022",
+                           "trade_gdp_county_2018" = "Trade GDP 2018", 
+                           "trade_gdp_county_2019" = "Trade GDP 2019", 
+                           "trade_gdp_county_2020" = "Trade GDP 2020", 
+                           "trade_gdp_county_2021" = "Trade GDP 2021", 
+                           "trade_gdp_county_2022" = "Trade GDP 2022", 
+                           "transportation_utilities_gdp_county_2018" = "Transportation & Utilities GDP 2018",
+                           "transportation_utilities_gdp_county_2019" = "Transportation & Utilities GDP 2019",
+                           "transportation_utilities_gdp_county_2020" = "Transportation & Utilities GDP 2020", 
+                           "transportation_utilities_gdp_county_2021" = "Transportation & Utilities GDP 2021", 
+                           "transportation_utilities_gdp_county_2022" = "Transportation & Utilities GDP 2022",
+                           "manufacturing_information_gdp_county_2018" = "Manufacturing & Information GDP 2018", 
+                           "manufacturing_information_gdp_county_2019" = "Manufacturing & Information GDP 2019", 
+                           "manufacturing_information_gdp_county_2020" = "Manufacturing & Information GDP 2020", 
+                           "manufacturing_information_gdp_county_2021" = "Manufacturing & Information GDP 2021", 
+                           "manufacturing_information_gdp_county_2022" = "Manufacturing & Information GDP 2022"
+  )
+) +
+  theme_minimal() + 
+  labs(
+    x = "Absolute Standardized Mean Difference",
+    y = NULL
+  ) +
+  theme(
+    legend.position = "bottom",
+    legend.title = element_blank(),
+    text = element_text(size = 12)
+  )
+ggsave("Output/love_plot_matching_labor_demand_LASSO_all_variables.pdf", love_plot, width = 8, height = 8)
+
+# Make a plot of the distribution of propensity scores
+matched_data <- match.data(match_out)
+
+# Create density plot
+ps_plot <- ggplot(matched_data, aes(x = distance, fill = factor(ec_ind_official))) +
+  geom_density(alpha = 0.5) +
+  scale_fill_manual(values = c("#0072B2", "#D55E00"),
+                    labels = c("Non-EC", "EC")) +
+  labs(x = "Propensity Score", 
+       y = "Density",
+       fill = "Energy Community") +
+  theme_minimal() +
+  theme(legend.position = "bottom",
+        text = element_text(size = 12),
+        panel.grid = element_blank())
+ggsave("Output/ps_density_matching_labor_demand_LASSO_all_variables.pdf", ps_plot, width = 8, height = 5, dpi = 300)
+
+# Calculate sample sizes
+sample_table <- data.frame(
+  Sample = c("Full Sample", 
+             "~~~Energy Community Counties",
+             "~~~Non-Energy Community Counties",
+             "",  # Empty row for spacing
+             "Matched Sample",
+             "~~~Energy Community Counties", 
+             "~~~Non-Energy Community Counties",
+             "",  # Empty row for spacing
+             "Dropped in Matching",
+             "~~~Energy Community Counties",
+             "~~~Non-Energy Community Counties"),
+  N = c(nrow(data_county),
+        sum(data_county$ec_ind_official == 1),
+        sum(data_county$ec_ind_official == 0),
+        "",
+        nrow(matched_data),
+        sum(matched_data$ec_ind_official == 1),
+        sum(matched_data$ec_ind_official == 0),
+        "",
+        nrow(data_county) - nrow(matched_data),
+        sum(data_county$ec_ind_official == 1) - sum(matched_data$ec_ind_official == 1),
+        sum(data_county$ec_ind_official == 0) - sum(matched_data$ec_ind_official == 0))
+)
+
+# Create LaTeX table
+sample_latex <- xtable(sample_table,
+                      caption = "Sample Size: Propensity Score Matching",
+                      label = "tab:sample_size",
+                      align = c("l", "l", "r"))
+
+# Save as .tab file
+print(sample_latex,
+      file = "Output/sample_size_table_labor_demand_LASSO_all_variables.tex",
+      include.rownames = FALSE,
+      booktabs = TRUE,
+      floating = FALSE,
+      sanitize.text.function = function(x) {
+        x <- gsub("~~~", "\\quad ", x, fixed = TRUE)
+        return(x)
+      })
+
+matched_ids <- match.data(match_out) %>%
+  pull("county_id")
+matched_panel <- data_county %>%
+  filter(county_id %in% matched_ids) %>%
+  select(county_id)
+matched_panel$matched_all_variables <- 1
+data_county <- left_join(data_county, matched_panel, by = "county_id")
+data_county$matched_all_variables <- ifelse(is.na(data_county$matched_all_variables), 0, data_county$matched_all_variables)
+
+data_county <- data_county %>%
+  select(county_id, matched_all_variables)
+
+write.csv(data_county, "Data/constructed data/matched_panel_labor_demand_LASSO.csv")
+```
