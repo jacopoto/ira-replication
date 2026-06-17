@@ -1,5 +1,52 @@
+# ---- OS ----
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ---- Editors / IDEs ----
+.vscode/
+.idea/
+*.swp
+*~
+.Rproj.user/
 .Rhistory
 .RData
 .Ruserdata
-.DS_Store
-Thumbs.db
+
+# ---- R ----
+*.Rproj
+renv/library/
+renv/python/
+renv/staging/
+.Rcheck/
+
+# ---- Python ----
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+env/
+.ipynb_checkpoints/
+*.egg-info/
+
+# ---- Stata ----
+*.smcl
+*.log
+*.gph
+~*.dta
+
+# ---- LaTeX ----
+*.aux
+*.bbl
+*.blg
+*.fdb_latexmk
+*.fls
+*.log
+*.out
+*.synctex.gz
+*.toc
+
+# ---- Build artifacts ----
+output/tmp/
+logs/
+*.tmp
